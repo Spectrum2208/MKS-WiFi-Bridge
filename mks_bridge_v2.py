@@ -287,6 +287,8 @@ class Printer:
         self.overwrite, self.ellipsis = True, "~"
         self.on_ip_change = lambda ip: None
         self.transferring = False
+        self.homing = False      # идёт парковка (G28): соединение занято ожиданием её конца
+        self._home_sock = None
         self.fan = None          # последняя заданная скорость обдува, % (принтер её не сообщает)
         self.history = deque(maxlen=3000)
         self._tcp_lock = threading.Lock()
@@ -376,6 +378,70 @@ class Printer:
             notify("MKS WiFi Bridge", "Принтер нашёлся по новому адресу: " + self.ip)
             return True
         return False
+
+    def home(self, command):
+        """Парковка. Marlin не отвечает на запросы, пока паркуется, но команды из того же соединения ставит в очередь:
+        шлём G28 и сразу M114 и держим соединение — ответ на M114 придёт ровно в момент окончания парковки.
+        Пока ждём, прошивка каждые 2 с присылает «busy: processing»; тишина 15 с — значит связь пропала."""
+        if self.homing:
+            raise RuntimeError("Принтер уже паркуется.")
+        self.homing = True
+        started, err = threading.Event(), []
+
+        def run():
+            t0, buf, done = time.time(), b"", False
+            try:
+                with self._tcp_lock:
+                    try:
+                        s = self._connect()
+                    except OSError as e:
+                        err.append(e)
+                        return
+                    self._home_sock = s
+                    started.set()
+                    try:
+                        s.sendall((command + "\r\nM114\r\n").encode())
+                        s.settimeout(1.0)
+                        last = time.time()
+                        while time.time() - t0 < 240 and time.time() - last < 15:
+                            try:
+                                d = s.recv(4096)
+                            except socket.timeout:
+                                continue
+                            if not d:
+                                break
+                            buf, last = buf + d, time.time()
+                            if b"Count" in buf:
+                                done = True
+                                break
+                    except OSError as e:
+                        log("парковка: связь оборвалась: %r" % (e,))
+                    finally:
+                        self._home_sock = None
+                        s.close()
+                log("парковка %s: %s за %.1f с" % (command, "готово" if done else "конца не дождались", time.time() - t0))
+            finally:
+                self.homing = False
+                started.set()
+                self.invalidate()
+            if done:
+                try:
+                    self.status_cached(max_age=0, quiet=True)   # панель сразу получает новые координаты
+                except Exception:
+                    pass
+
+        threading.Thread(target=run, daemon=True).start()
+        started.wait(20)
+        if err:
+            raise err[0]
+
+    def emergency(self):
+        """M112 во время парковки: в то же соединение, другого модуль не примет."""
+        s = self._home_sock
+        if s is None:
+            return False
+        s.sendall(b"M112\r\n")
+        return True
 
     def files(self):
         text = self.cmd(["M20"], wait=2.5, until="End file list")
@@ -468,10 +534,13 @@ class Printer:
 
     def status_cached(self, max_age=2.5, quiet=False, allow_stale=False):
         """Для панели: во время заливки к принтеру не обращаемся, одновременные запросы схлопываем."""
-        if self.transferring:
-            st = dict(self._cache[1] or {"progress": None, "nozzle": None, "bed": None,
+        if self.transferring or self.homing:
+            st = dict(self._cache[1] or {"state": "unknown", "progress": None, "nozzle": None, "bed": None,
                                          "elapsed": None, "file": None, "pos": None})
-            st["state"] = "ЗАГРУЗКА ФАЙЛА"
+            if self.transferring:
+                st["state"] = "ЗАГРУЗКА ФАЙЛА"
+            else:
+                st["homing"] = st["stale"] = True
             return st
         with self._status_lock:
             if self._cache[1] and time.time() - self._cache[0] < max_age:
@@ -795,6 +864,9 @@ def make_handler(printer):
             if printer.transferring:
                 self._json(409, {"error": "Идёт загрузка файла, подожди."})
                 return False
+            if printer.homing:
+                self._json(409, {"error": "Принтер паркуется, подожди: команды станут доступны, когда он закончит."})
+                return False
             return True
 
         # --- GET ---
@@ -1048,20 +1120,32 @@ def make_handler(printer):
                 self._json(502, {"error": str(e)})
 
         def _console(self):
-            if not self._guard_printer():
-                return
             b = self._jbody()
             cmd = (b.get("cmd") or "").strip()
             if not cmd or "\n" in cmd or "\r" in cmd or len(cmd) > 100:
                 self._json(400, {"error": "Одна команда в одну строку."})
                 return
             token = cmd.split()[0].upper()
+            if token == "M112" and printer.homing:
+                try:
+                    printer.emergency()
+                    log("консоль: M112 во время парковки")
+                    self._json(200, {"reply": "M112 отправлена"})
+                except OSError as e:
+                    self._json(502, {"error": str(e)})
+                return
+            if not self._guard_printer():
+                return
             try:
                 if token not in SAFE_WHILE_PRINTING and not b.get("force") and is_printing(printer.status_cached()):
                     self._json(409, {"error": "Идёт печать: %s заблокирована. Отметь «Разрешить опасные команды», "
                                               "если уверен." % token})
                     return
                 log("консоль: " + cmd)
+                if token == "G28":
+                    printer.home(cmd)
+                    self._json(200, {"reply": "", "homing": True})
+                    return
                 reply = printer.cmd([cmd], wait=1.5).strip()
                 if token == "M107":
                     printer.fan = 0
@@ -1562,7 +1646,7 @@ async function tick(){
   if(document.hidden)return;
   const s=await api('/api/status?win='+RANGE);
   $('#ip').textContent=s.ip||'не задан';
-  const b=$('#state');b.textContent=s.online?(s.state||'—')+(s.stale?' …':''):'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
+  const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':(s.state||'—')+(s.stale?' …':'')):'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
   $('#nozzle').innerHTML=ttH(s.nozzle);$('#bed').innerHTML=ttH(s.bed);
   $('#prog').style.width=(s.progress||0)+'%';$('#progtxt').textContent=s.progress!=null?s.progress+'%':'—';
   $('#layer').textContent=s.layers?(s.layer_exact?'':'≈ ')+s.layer+' / '+s.layers:'—';
@@ -1656,8 +1740,10 @@ function log(t,c){const l=$('#log'),d=document.createElement('div');d.textConten
 function homeAnim(c){const ax=c.trim().toUpperCase().split(/\s+/).slice(1).filter(a=>/^[XYZ]$/.test(a)),all=!ax.length,h=a=>all||ax.includes(a);
   holdMove(h('X')?0:null,h('Y')?0:null,h('Z')?0:null,feedXY(50),Math.min(LIM.z||5,5),3500)}
 async function cmd(c){const tok=c.trim().split(/\s+/)[0].toUpperCase();if(DANGER[tok]&&!confirm(DANGER[tok]))return;
-  if(tok==='G28'&&!/PRINT|PAUSE/.test(LASTS.state||''))homeAnim(c);
-  tab('log');log('> '+c);const r=await api('/api/console',{cmd:c,force:$('#force').checked});r.error?log(r.error,'#ef5350'):log(r.reply||'(команда отправлена, ответа нет)')}
+  if(tok==='G28'&&!/PRINT|PAUSE/.test(LASTS.state||'')){homeAnim(c);HOMING=Date.now()}
+  tab('log');log('> '+c);const r=await api('/api/console',{cmd:c,force:$('#force').checked});
+  if(r.error){if(tok==='G28')HOMING=0;log(r.error,'#ef5350')}
+  else{log(r.reply||(r.homing?'(принтер паркуется: пока не закончит, остальные команды недоступны)':'(команда отправлена, ответа нет)'));if(r.homing)tick()}}
 function sendCon(){const v=$('#cin').value.trim();if(!v)return;CMDH.push(v);hi=CMDH.length;cmd(v);$('#cin').value=''}
 function conKey(e){if(e.key==='Enter')sendCon();else if(e.key==='ArrowUp'&&CMDH.length){hi=Math.max(0,hi-1);$('#cin').value=CMDH[hi];e.preventDefault()}
   else if(e.key==='ArrowDown'&&CMDH.length){hi=Math.min(CMDH.length,hi+1);$('#cin').value=CMDH[hi]||'';e.preventDefault()}}
@@ -1773,7 +1859,7 @@ function buildTwin(){
    '<g transform="translate(34,262)"><circle r="17" fill="none" style="stroke:var(--mut)" stroke-width="2"/><g id="eBlades" class="blades"><path d="M0 0 L-3 -13 A13 13 0 0 1 8 -10Z M0 0 L13 -3 A13 13 0 0 1 10 8Z M0 0 L3 13 A13 13 0 0 1 -8 10Z M0 0 L-13 3 A13 13 0 0 1 -10 -8Z" '+rod+'/></g></g>';
   zTitles();renderE();syncArm();fitViews();renderPos()}
 // ---- плавное движение каретки и стола: на экране едут с реальной скоростью (≈100 мм/с по XY, 25 мм/с по Z), но любой переезд укладывается в ~1.5 с
-let ANIM=true,CUR=null,TGTP=null,MOTION=null,posRaf=0,posT=0,HOLD=0,LASTGOOD=Date.now(),EVER=false,LIM={x:null,y:null,z:null},LIMTRIED=false;
+let ANIM=true,CUR=null,TGTP=null,MOTION=null,posRaf=0,posT=0,HOLD=0,HOMING=0,LASTGOOD=Date.now(),EVER=false,LIM={x:null,y:null,z:null},LIMTRIED=false;
 const T0=Date.now();
 function renderPos(){if(!TW||!FR||!CUR)return;const g=GEOM,c=CUR,px=TW.ox+c.x*TW.s,py=TW.oy+(g.by-c.y)*TW.s,fx=FR.l+(c.x/g.bx)*FR.bw;
   $('#tHead').setAttribute('transform','translate('+px+','+py+')');$('#tGant').setAttribute('transform','translate(0,'+py+')');
@@ -1792,8 +1878,12 @@ function setVeil(s,fresh){
   let msg=null,sub='';
   if(!EVER&&Date.now()-T0<5000){msg='Загрузка…'}
   else if(s.online===false||(s.error&&!fresh)){msg='Нет связи с принтером';sub=(s.error?String(s.error).replace(/\.?\s*$/,'. '):'')+'Показано последнее известное положение.'}
+  else if(!fresh&&homing()){msg='Принтер едет домой';sub='Во время парковки (G28) прошивка не отвечает на запросы — это нормально. Положение обновится, когда он закончит.'}
   else if(!fresh&&Date.now()-LASTGOOD>25000){msg='Принтер долго не отвечает';sub='Возможно, он занят движением. Показано последнее известное положение.'}
-  document.querySelectorAll('.veil').forEach(v=>{v.hidden=!msg;if(msg){v.children[0].textContent=msg;v.children[1].textContent=sub;v.children[2].style.display=msg==='Загрузка…'?'none':''}})}
+  const wait=msg==='Загрузка…'||msg==='Принтер едет домой';
+  document.querySelectorAll('.veil').forEach(v=>{v.hidden=!msg;if(msg){v.children[0].textContent=msg;v.children[1].textContent=sub;v.children[2].style.display=wait?'none':''}})}
+// парковку отслеживает мост (s.homing); HOMING закрывает несколько секунд до первого ответа моста после нажатия
+function homing(){return !!LASTS.homing||(HOMING&&Date.now()-HOMING<4000)}
 async function reconnect(){toast('Переподключаюсь…');const r=await api('/api/reconnect',{});toast(r.error||('Связь есть: '+(r.state||'ok')));tick()}
 function feedXY(f){return Math.min(f,LIM.x||f,LIM.y||f)}
 function holdPlan(tx,ty,tz,vxy,vz,extra){const c=TGTP||CUR||{x:0,y:0,z:0};
@@ -1818,6 +1908,7 @@ function bedYAt(z){const g=GEOM;return g.z_bed?FR.tip+4+(Math.min(z,g.bz)/g.bz)*
 function updateTwin(s){
   if(!TW||!FR)return;LASTS=s||{};const g=GEOM,p=s.pos,nt=s.nozzle,bt=s.bed,cl=(v,m)=>Math.max(0,Math.min(m,v));
   const fresh=!!p&&!s.stale&&!s.pos_stale&&s.online!==false;
+  if(fresh&&HOMING&&!s.homing&&Date.now()-HOMING>4000){HOMING=0;HOLD=0}   // парковка кончилась: сразу на настоящие координаты
   if(fresh){LASTGOOD=Date.now();EVER=true;if(Date.now()>=HOLD)setPosTarget(cl(p.x,g.bx),cl(p.y,g.by),cl(p.z,g.bz))}
   setVeil(s,fresh);
   const x=TGTP?TGTP.x:0,pp=p||(TGTP?{x:TGTP.x,y:TGTP.y,z:TGTP.z}:null),bc=tcol(bt&&bt[0],110),nc=tcol(nt&&nt[0],260);
