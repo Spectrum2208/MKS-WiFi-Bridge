@@ -1,0 +1,15 @@
+# Логи и кэш Python
+*.log
+__pycache__/
+*.pyc
+
+# Сторонние программы и бинарники
+*.exe
+
+# Старая версия моста
+mks_bridge.py
+
+# Файлы помощника (только локально)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
