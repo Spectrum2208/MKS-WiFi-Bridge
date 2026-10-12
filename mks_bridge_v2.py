@@ -294,6 +294,7 @@ class Printer:
         self._tcp_lock = threading.Lock()
         self._status_lock = threading.Lock()
         self._cache = (0.0, None)
+        self._gen = 0            # растёт после каждой команды, меняющей состояние: опрос, начатый раньше, уже устарел
         self._last_scan = 0.0
         self.last_raw = ""
         self.limits = CFG.get("limits")   # максимальные скорости из прошивки (M203), мм/с; читаются только по кнопке и запоминаются
@@ -337,7 +338,8 @@ class Printer:
         self._cache = (0.0, self._cache[1])
 
     def cmd(self, commands, wait=1.5, until=None, rediscover=True):
-        if not all(c.split()[0] in ("M105", "M997", "M27", "M992", "M994", "M114", "M20") for c in commands if c.split()):
+        changes = not all(c.split()[0].upper() in ("M105", "M997", "M27", "M992", "M994", "M114", "M20") for c in commands if c.split())
+        if changes:
             self.invalidate()  # после команд движения/нагрева следующий статус должен быть свежим
         toks = [c.split()[0].upper() for c in commands if c.split()]
         if "G28" in toks:
@@ -351,6 +353,11 @@ class Printer:
                 if not rediscover or not self.rediscover():
                     raise
                 r = self._cmd_once(commands, wait, until)
+            if changes:
+                # Опрос, который держал соединение до нас, прочитал состояние ДО команды и сейчас положит его в кэш
+                # как свежее. Новое поколение не даст ему этого: см. status_cached.
+                self._gen += 1
+                self.invalidate()
         self._recovered()
         return r
 
@@ -552,6 +559,7 @@ class Printer:
                 return old
             if now < self.fail_until:                           # после сбоя не долбимся в модуль, ждём
                 raise RuntimeError(self.last_err or "нет связи с принтером")
+            gen = self._gen
             try:
                 raw = self.status(quiet)
             except Exception as e:
@@ -565,7 +573,11 @@ class Printer:
             self.history.append((int(time.time()), n[0] if n else None, b[0] if b else None,
                                  n[1] if n else None, b[1] if b else None))
             st = self._merge(raw, self._cache[1])
-            self._cache = (time.time(), st)
+            if self._gen != gen:   # пока мы спрашивали, ушла команда движения/нагрева: ответ уже не отражает принтер
+                st = dict(st, stale=True, pos_stale=True)
+                self._cache = (0.0, st)
+            else:
+                self._cache = (time.time(), st)
             return st
 
     def delete(self, name, _checked=False, listed=None):
@@ -949,7 +961,7 @@ def make_handler(printer):
             return {"printer_ip": printer.ip, "max_name": CFG["max_name"], "overwrite": CFG["overwrite"],
                     "background_poll": CFG.get("background_poll", True),
                     "geom": {"bx": CFG["bed_x"], "by": CFG["bed_y"], "bz": CFG["bed_z"], "z_bed": CFG["z_bed"]}, "remote": CFG["remote"], "pin": CFG["pin"] if self._local() else "",
-                    "urls": urls, "autostart": autostart_get(), "version": VERSION,
+                    "urls": urls, "autostart": autostart_get(), "version": VERSION, "limits": printer.limits or {},
                     "can_autostart": sys.platform == "win32"}
 
         # --- POST ---
@@ -1455,7 +1467,7 @@ PANEL_HTML = r"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
 *{box-sizing:border-box}input[type=checkbox]{accent-color:var(--acc)}
 body{margin:0 auto;max-width:1800px;padding:10px 12px;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,"Segoe UI",sans-serif}
 header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}header h1{font-size:18px;margin:0}header .sp{flex:1}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:12px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;min-width:0;display:flex;flex-direction:column}
 .card h2{flex-wrap:wrap;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 8px;display:flex;align-items:center;gap:8px}.card h2 .sp{flex:1}
 @media(min-width:1450px) and (min-height:640px){
@@ -1543,6 +1555,35 @@ input[type=text],input[type=number]{font:inherit;padding:6px 8px;border-radius:8
 @keyframes spin{to{transform:rotate(360deg)}}.blades{transform-box:fill-box;transform-origin:center;animation:spin 1s linear infinite;animation-play-state:paused}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:#222;color:#fff;padding:10px 16px;border-radius:10px;max-width:90vw;display:none;z-index:9}
 .ov{position:fixed;inset:0;background:#0009;display:none;place-items:center;z-index:8}.ov.on{display:grid}.sbox{width:min(580px,94vw);max-height:90vh;overflow:auto}
+.tiles.t2{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:8px}
+.t2 .tile{flex-wrap:nowrap;gap:8px;padding:7px 8px 7px 14px}.t2 .tv b{font-size:23px;white-space:nowrap}
+.t2 .tc{gap:4px}.t2 .tin input{width:42px;padding:6px 4px}.t2 .kb.t{width:32px;height:32px}.t2 .kb.t svg{width:18px;height:18px}
+.kb.cool{color:#4fc3f7}.kb.cool:hover{color:#4fc3f7;border-color:#4fc3f7}
+.kb.go{background:var(--acc);border-color:var(--acc);color:#fff}.kb.go:hover{color:#fff;filter:brightness(1.1)}
+button.s.ib{display:inline-flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0}.s.ib span{display:inline-grid;line-height:0;color:#4fc3f7}.s.ib svg{width:14px;height:14px}
+.sbox{width:min(600px,94vw);padding:16px 18px 14px;gap:6px;box-shadow:0 12px 40px #0006}#ov.on .sbox{animation:pop .14s ease-out}
+.shd{display:flex;align-items:center;gap:10px;margin-bottom:2px}.shd h3{margin:0;font-size:17px}.shd .sp{flex:1}.shd .kb{font-size:14px}
+.sbox .rg{margin:12px 0 2px}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid var(--bd);border-radius:12px;background:var(--bg)}
+.sl{display:flex;flex-direction:column;gap:2px;min-width:0}.sl b{font-size:14px;font-weight:600}.sl span{font-size:12.5px;color:var(--mut);line-height:1.35}
+.sc{display:flex;gap:6px;align-items:center;flex:none}
+.sin{width:140px;font:600 14px ui-monospace,Consolas,monospace!important;background:var(--card)!important}
+.tin.sxyz{padding:0 8px 0 9px}.tin.sxyz input{width:46px;padding-left:4px}.tin.sxyz i:first-child{font-weight:600}
+.sw{position:relative;flex:none;width:42px;height:24px;cursor:pointer}.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.sw i{position:absolute;inset:0;border-radius:99px;background:var(--bd);transition:background .15s;pointer-events:none}
+.sw i::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:transform .15s}
+.sw input:checked+i{background:var(--acc)}.sw input:checked+i::after{transform:translateX(18px)}.sw input:focus-visible+i{outline:2px solid var(--acc);outline-offset:2px}
+.sremote{padding:10px 12px;border:1px dashed var(--acc);border-radius:12px;display:flex;flex-direction:column;gap:6px;font-size:13px}.sremote[hidden]{display:none}
+.sremote code{font:600 13px ui-monospace,Consolas,monospace;padding:2px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--bd);user-select:all;white-space:nowrap;display:inline-block;margin:2px 0}
+.sremote .sp{flex:1}.pin{font:700 22px ui-monospace,Consolas,monospace;letter-spacing:.18em;color:var(--fg)}
+.sft{display:flex;justify-content:flex-end;margin-top:12px}
+@media(max-width:520px){.srow{flex-wrap:wrap}.sc{flex-wrap:wrap}}
+#dlg{z-index:10;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}#dlg.on .dbox{animation:pop .14s ease-out}
+@keyframes pop{from{transform:scale(.96);opacity:0}}
+.dbox{width:min(420px,92vw);padding:18px 20px 16px;gap:8px;box-shadow:0 12px 40px #0006}.dbox h3{margin:0;font-size:17px;line-height:1.3}
+.dbox p{margin:0;color:var(--mut);font-size:14px;line-height:1.45;word-break:break-word}.dbox p:empty{display:none}
+.dch{display:flex;flex-direction:column;gap:6px;margin-top:4px}.dch:empty{display:none}.dch button{text-align:left;font:600 14px ui-monospace,Consolas,monospace}
+.dbtn{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}button.dz{background:var(--bad);border-color:var(--bad);color:#fff}button.dz:hover{filter:brightness(1.1)}
 </style></head><body>
 <header><h1>MKS WiFi Bridge</h1><span id="state" class="badge">…</span><span class="mut">принтер: <span id="ip">—</span></span><span class="sp"></span>
 <button class="p sm" id="homeAll" title="Домой по всем осям (G28)" onclick="cmd('G28')" style="display:inline-flex;align-items:center;gap:6px"><span data-i="home" style="display:inline-grid;line-height:0"></span>Домой все оси</button>
@@ -1587,14 +1628,14 @@ input[type=text],input[type=number]{font:inherit;padding:6px 8px;border-radius:8
 </div>
 </div>
 <div class="col" id="c3">
-<div class="card" id="cTm"><h2>Температуры <span class="sp"></span><span id="ranges" class="seg"></span></h2>
- <div class="tiles">
+<div class="card" id="cTm"><h2>Температуры <span class="sp"></span><button class="s ib" onclick="coolAll()" title="Выключить нагрев сопла и стола (M104 S0, M140 S0)"><span data-i="snow"></span>Остудить всё</button><span id="ranges" class="seg"></span></h2>
+ <div class="tiles t2">
   <div class="tile" style="--c:#ef6c00"><div class="tv"><span class="tl">Сопло</span><b id="nozzle">—</b></div>
-   <div class="tc"><div class="tin"><input type="number" id="tn" placeholder="цель" min="0" max="300" onkeydown="if(event.key==='Enter')setT('M104','tn')"><i>°C</i></div><button class="p sm" onclick="setT('M104','tn')">Задать</button><button class="sm" onclick="cmd('M104 S0')">Выкл</button></div></div>
+   <div class="tc"><div class="tin"><input type="number" id="tn" placeholder="цель" min="0" max="300" onkeydown="if(event.key==='Enter')setT('M104','tn')"><i>°C</i></div><button class="kb t go" data-i="check" title="Задать температуру сопла" onclick="setT('M104','tn')"></button><button class="kb t cool" data-i="snow" title="Остудить сопло (M104 S0)" onclick="heatOff('M104')"></button></div></div>
   <div class="tile" style="--c:#1e88e5"><div class="tv"><span class="tl">Стол</span><b id="bed">—</b></div>
-   <div class="tc"><div class="tin"><input type="number" id="tb" placeholder="цель" min="0" max="120" onkeydown="if(event.key==='Enter')setT('M140','tb')"><i>°C</i></div><button class="p sm" onclick="setT('M140','tb')">Задать</button><button class="sm" onclick="cmd('M140 S0')">Выкл</button></div></div></div>
+   <div class="tc"><div class="tin"><input type="number" id="tb" placeholder="цель" min="0" max="120" onkeydown="if(event.key==='Enter')setT('M140','tb')"><i>°C</i></div><button class="kb t go" data-i="check" title="Задать температуру стола" onclick="setT('M140','tb')"></button><button class="kb t cool" data-i="snow" title="Остудить стол (M140 S0)" onclick="heatOff('M140')"></button></div></div></div>
  <div class="cv"><canvas id="chart"></canvas></div>
- <div class="mut">Сплошная линия — измеренная температура, пунктирная — заданная. Метки справа: закрашенная — сейчас, с пунктиром — цель. Разрыв линии — в это время данных не было. Наведи курсор на график.</div></div>
+ <div class="mut sm">Сплошная — факт, пунктир — цель, разрыв — нет данных. Наведи на график, чтобы увидеть значения.</div></div>
 <div class="card" id="cCs"><h2><span class="tbs"><button class="tb on" data-t="log" onclick="tab('log')">G-code консоль</button><button class="tb" data-t="ref" onclick="tab('ref')">Справочник команд</button></span><span class="sp"></span><button class="s" id="clr" onclick="$('#log').textContent=''">Очистить</button></h2>
  <div class="pane" id="pLog"><div id="log"></div></div>
  <div class="pane" id="pRef" hidden><input type="text" id="refq" placeholder="поиск: температура, M115, home…" style="width:100%" oninput="renderRef()">
@@ -1603,23 +1644,41 @@ input[type=text],input[type=number]{font:inherit;padding:6px 8px;border-radius:8
  <label class="mut"><input type="checkbox" id="force"> Разрешить опасные команды во время печати</label></div>
 </div>
 </div>
-<div id="ov" class="ov" onclick="if(event.target===this)closeSet()"><div class="card sbox"><h2>Настройки</h2>
- <div class="row">IP принтера <input type="text" id="sip" style="width:150px"><button onclick="saveIp()">Сохранить</button><button onclick="findPrinter()">Найти принтер</button></div>
- <div class="row"><label><input type="checkbox" id="sow" onchange="saveOpt()"> Заменять файл с тем же именем (иначе _1, _2…)</label></div>
- <div class="row"><label><input type="checkbox" id="sbg" onchange="saveOpt()"> Опрашивать принтер в фоне (непрерывный график, когда панель закрыта)</label></div>
- <div class="row">Стол, мм: X <input type="number" id="gbx" min="50" max="1000" style="width:70px"> Y <input type="number" id="gby" min="50" max="1000" style="width:70px"> Z <input type="number" id="gbz" min="50" max="1000" style="width:70px"><button onclick="saveOpt()">OK</button></div>
- <div class="row"><button onclick="loadLimits()">Считать скорости из прошивки (M503)</button><span class="mut" id="lims"></span></div>
- <div class="row"><label><input type="checkbox" id="gzb" onchange="saveOpt()"> Стол движется по Z (как у Ghost): +Z опускает стол</label></div>
- <div class="row">Макс. длина имени файла <input type="number" id="smax" min="12" max="60" style="width:80px"><button onclick="saveOpt()">OK</button></div>
- <div class="row"><label><input type="checkbox" id="srem" onchange="saveRemote()"> Доступ с телефона (защищён PIN)</label></div>
- <div class="mut" id="remote"></div>
- <div class="row" id="autorow"><label><input type="checkbox" id="sauto" onchange="saveAuto()"> Запускать вместе с Windows</label></div>
- <div class="row"><button class="d" onclick="if(confirm('Выключить мост? Orca перестанет отправлять файлы.'))api('/api/quit',{})">Выход из программы</button><span style="flex:1"></span><span class="mut" id="ver"></span><button onclick="closeSet()">Закрыть</button></div></div></div>
+<div id="ov" class="ov" onclick="if(event.target===this)closeSet()"><div class="card sbox" role="dialog" aria-modal="true" aria-labelledby="setT">
+ <div class="shd"><h3 id="setT">Настройки</h3><span class="mut" id="ver"></span><span class="sp"></span><button class="kb t" onclick="closeSet()" title="Закрыть (Esc)" aria-label="Закрыть">✕</button></div>
+ <div class="rg">Подключение</div>
+ <div class="srow"><div class="sl"><b>Адрес принтера</b><span>IP модуля MKS-WIFI в домашней сети</span></div>
+  <div class="sc"><input type="text" id="sip" class="sin" spellcheck="false" onchange="saveIp()"><button class="sm" onclick="findPrinter()">Найти</button></div></div>
+ <div class="srow"><div class="sl"><b>Опрос в фоне</b><span>График температур не прерывается, даже когда панель закрыта</span></div>
+  <label class="sw"><input type="checkbox" id="sbg" onchange="saveOpt()"><i></i></label></div>
+ <div class="rg">Файлы</div>
+ <div class="srow"><div class="sl"><b>Заменять файл с тем же именем</b><span>Иначе к имени добавится _1, _2…</span></div>
+  <label class="sw"><input type="checkbox" id="sow" onchange="saveOpt()"><i></i></label></div>
+ <div class="srow"><div class="sl"><b>Длина имени на принтере</b><span>Длинные имена укорачиваются с середины, 12–60 символов</span></div>
+  <div class="tin"><input type="number" id="smax" min="12" max="60" onchange="saveOpt()"><i>симв.</i></div></div>
+ <div class="rg">Принтер</div>
+ <div class="srow"><div class="sl"><b>Размер области печати</b><span>Границы для перемещений и модели в панели</span></div>
+  <div class="sc"><div class="tin sxyz"><i>X</i><input type="number" id="gbx" min="50" max="1000" onchange="saveOpt()"></div><div class="tin sxyz"><i>Y</i><input type="number" id="gby" min="50" max="1000" onchange="saveOpt()"></div><div class="tin sxyz"><i>Z</i><input type="number" id="gbz" min="50" max="1000" onchange="saveOpt()"><i>мм</i></div></div></div>
+ <div class="srow"><div class="sl"><b>По Z движется стол</b><span>Как у Ghost: +Z опускает стол. Выключи, если по Z ездит головка</span></div>
+  <label class="sw"><input type="checkbox" id="gzb" onchange="saveOpt()"><i></i></label></div>
+ <div class="srow"><div class="sl"><b>Скорости из прошивки</b><span id="lims">Не считаны: анимация в панели едет с примерной скоростью</span></div>
+  <button class="sm" onclick="loadLimits()" title="Прочитать M203/M204 командой M503">Считать</button></div>
+ <div class="rg">Доступ и запуск</div>
+ <div class="srow"><div class="sl"><b>Доступ с телефона</b><span>Панель откроется с других устройств в сети по PIN-коду</span></div>
+  <label class="sw"><input type="checkbox" id="srem" onchange="saveRemote()"><i></i></label></div>
+ <div class="sremote" id="remote" hidden></div>
+ <div class="srow" id="autorow"><div class="sl"><b>Запускать вместе с Windows</b><span>Мост стартует в фоне при входе в систему</span></div>
+  <label class="sw"><input type="checkbox" id="sauto" onchange="saveAuto()"><i></i></label></div>
+ <div class="sft"><button class="bt d" onclick="quitApp()"><span data-i="power"></span>Выход из программы</button></div></div></div>
 <div id="toast" class="toast"></div>
+<div id="dlg" class="ov"><div class="card dbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgT" aria-describedby="dlgX">
+ <h3 id="dlgT"></h3><p id="dlgX"></p><div id="dlgC" class="dch"></div><div class="dbtn"><button id="dlgN">Отмена</button><button id="dlgY" class="p">OK</button></div></div></div>
 <script>
 const $=s=>document.querySelector(s);
 const HDR={'X-Requested-With':'mks','Content-Type':'application/json'};
-const P={pause:'M6 5h4v14H6zM14 5h4v14h-4z',play:'M8 5v14l11-7z',stop:'M6 6h12v12H6z',home:'M12 3 2 12h3v8h5v-6h4v6h5v-8h3z',arrow:'M12 4l8 9h-5v7H9v-7H4z',
+const P={check:'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z',
+ snow:'M22 11h-4.17l3.24-3.24-1.41-1.42L15 11h-2V9l4.66-4.66-1.42-1.41L13 6.17V2h-2v4.17L7.76 2.93 6.34 4.34 11 9v2H9L4.34 6.34 2.93 7.76 6.17 11H2v2h4.17l-3.24 3.24 1.41 1.42L9 13h2v2l-4.66 4.66 1.42 1.41L11 17.83V22h2v-4.17l3.24 3.24 1.42-1.41L13 15v-2h2l4.66 4.66 1.41-1.42L17.83 13H22z',
+ pause:'M6 5h4v14H6zM14 5h4v14h-4z',play:'M8 5v14l11-7z',stop:'M6 6h12v12H6z',home:'M12 3 2 12h3v8h5v-6h4v6h5v-8h3z',arrow:'M12 4l8 9h-5v7H9v-7H4z',
  motor:'M3 9h2v6H3zM6 6h10v12H6zM16 10h5v4h-5zM8 8v8h2V8z',power:'M11 3h2v10h-2zM17.7 6.3l-1.4 1.4A6 6 0 1 1 7.7 7.7L6.3 6.3a8 8 0 1 0 11.4 0z',
  refresh:'M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z',trash:'M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z',
  tune:'M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z'};
@@ -1630,6 +1689,20 @@ function lsGet(k){try{return localStorage.getItem(k)}catch(_){return null}}funct
 async function api(p,body){
   try{const r=await fetch(p,body===undefined?{cache:'no-store'}:{method:'POST',headers:HDR,body:JSON.stringify(body)});
     if(r.status===401){location.reload();return{}}return await r.json()}catch(e){return{error:String(e)}}}
+// Окно подтверждения вместо системного confirm(). Возвращает true/false, а с choices — выбранный вариант или null.
+// У «красных» действий фокус на «Отмена»: случайный Enter ничего не сломает.
+function ask(title,text,ok,danger,choices){return new Promise(res=>{
+  const o=$('#dlg'),y=$('#dlgY'),n=$('#dlgN'),ch=$('#dlgC'),no=choices?null:false,prev=document.activeElement;
+  if(o.classList.contains('on'))$('#dlgN').click();   // одно окно за раз: предыдущее считаем отменённым
+  $('#dlgT').textContent=title;$('#dlgX').textContent=text||'';ch.textContent='';
+  const key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();done(no)}};
+  function done(v){o.classList.remove('on');document.removeEventListener('keydown',key,true);o.onclick=n.onclick=y.onclick=null;
+    if(prev&&prev.focus&&document.contains(prev))prev.focus();res(v)}
+  if(choices){y.style.display='none';choices.forEach(c=>{const b=document.createElement('button');b.textContent=c;b.onclick=()=>done(c);ch.appendChild(b)})}
+  else{y.style.display='';y.textContent=ok||'OK';y.className=danger?'dz':'p';y.onclick=()=>done(true)}
+  n.onclick=()=>done(no);o.onclick=e=>{if(e.target===o)done(no)};
+  document.addEventListener('keydown',key,true);o.classList.add('on');(choices?ch.firstChild:danger?n:y).focus()})}
+async function quitApp(){if(await ask('Выключить мост?','Orca перестанет отправлять файлы на принтер, панель перестанет обновляться.','Выключить',1))api('/api/quit',{})}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',5500);
   try{navigator.vibrate&&navigator.vibrate(150)}catch(_){}}
 // ---- тема
@@ -1728,18 +1801,24 @@ async function loadFiles(){
   box.textContent='';if(!r.files.length){box.textContent='Файлов нет';return}
   r.files.forEach(n=>{const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.value=n;l.appendChild(c);l.appendChild(document.createTextNode(n));box.appendChild(l)})}
 const sel=()=>[...document.querySelectorAll('#files input:checked')].map(c=>c.value);
-async function delSel(){const n=sel();if(!n.length||!confirm('Удалить '+n.length+' файл(ов) с принтера?'))return;
+async function delSel(){const n=sel();if(!n.length){toast('Отметь файлы для удаления');return}
+  if(!await ask(n.length===1?'Удалить файл с принтера?':'Удалить '+n.length+' файл(ов) с принтера?',n.join(', '),'Удалить',1))return;
   toast('Удаляю…');const r=await api('/api/delete',{names:n});toast(r.error||('Удалено: '+r.results.filter(x=>x.ok).length+' из '+n.length));loadFiles()}
 async function printSel(){const n=sel();if(n.length!==1){toast('Выбери один файл');return}
-  if(!confirm('Запустить печать '+n[0]+'?'))return;const r=await api('/api/print',{name:n[0]});toast(r.error||'Печать запущена')}
+  if(!await ask('Запустить печать?',n[0],'Печатать'))return;const r=await api('/api/print',{name:n[0]});toast(r.error||'Печать запущена')}
 // ---- консоль
-const DANGER={G28:'Выехать в home? Проверь, что на столе и под соплом ничего нет.',M26:'Остановить печать?',M112:'АВАРИЙНЫЙ стоп! Принтер остановится и потребует перезагрузки. Продолжить?',
- M500:'Записать текущие настройки в память платы (EEPROM)?',M502:'Сбросить настройки платы к заводским значениям прошивки? Это затронет шаги, ускорения, PID.',M303:'Запустить автокалибровку PID? Сопло будет греться, не оставляй принтер без присмотра.'};
+// [заголовок, пояснение, кнопка, красная]
+const DANGER={G28:['Парковка','Головка и стол поедут к концевикам. Проверь, что на столе и под соплом ничего нет.','Парковать'],
+ M26:['Остановить печать?','Печать прервётся, продолжить её с этого места будет нельзя.','Остановить',1],
+ M112:['Аварийный стоп','Принтер немедленно остановится и потребует перезагрузки по питанию.','Аварийный стоп',1],
+ M500:['Записать в EEPROM?','Текущие настройки платы сохранятся в её память и переживут перезагрузку.','Записать'],
+ M502:['Сброс к заводским','Шаги, ускорения и PID вернутся к значениям прошивки. В память не запишется, пока не выполнишь M500.','Сбросить',1],
+ M303:['Калибровка PID','Сопло будет греться и остывать несколько минут. Не оставляй принтер без присмотра.','Запустить']};
 const CMDH=[];let hi=0;
 function log(t,c){const l=$('#log'),d=document.createElement('div');d.textContent=t;if(c)d.style.color=c;l.appendChild(d);l.scrollTop=l.scrollHeight}
 function homeAnim(c){const ax=c.trim().toUpperCase().split(/\s+/).slice(1).filter(a=>/^[XYZ]$/.test(a)),all=!ax.length,h=a=>all||ax.includes(a);
   holdMove(h('X')?0:null,h('Y')?0:null,h('Z')?0:null,feedXY(50),Math.min(LIM.z||5,5),3500)}
-async function cmd(c){const tok=c.trim().split(/\s+/)[0].toUpperCase();if(DANGER[tok]&&!confirm(DANGER[tok]))return;
+async function cmd(c){const tok=c.trim().split(/\s+/)[0].toUpperCase(),dg=DANGER[tok];if(dg&&!await ask(dg[0],dg[1],dg[2],dg[3]))return;
   if(tok==='G28'&&!/PRINT|PAUSE/.test(LASTS.state||'')){homeAnim(c);HOMING=Date.now()}
   tab('log');log('> '+c);const r=await api('/api/console',{cmd:c,force:$('#force').checked});
   if(r.error){if(tok==='G28')HOMING=0;log(r.error,'#ef5350')}
@@ -1779,7 +1858,7 @@ let STEP=10;
 $('#steps').innerHTML=[0.1,1,10,50].map(s=>'<button data-s="'+s+'" onclick="setStep('+s+')">'+s+'</button>').join('');
 function setStep(s){STEP=s;$('#zstep').textContent=s;document.querySelectorAll('#steps button').forEach(b=>b.classList.toggle('on',+b.dataset.s===s))}setStep(10);
 async function mv(a,sign){const d=sign*STEP;
-  if(d<0&&a==='Z'&&STEP>=10&&!confirm('Сблизить сопло и стол на '+STEP+' мм? Проверь, что под соплом ничего нет.'))return;
+  if(d<0&&a==='Z'&&STEP>=10&&!await ask('Сблизить сопло и стол на '+STEP+' мм?','Проверь, что под соплом ничего нет.','Сблизить'))return;
   log('> '+a+(d>0?'+':'')+d+' мм');
   let plan;{const c=TGTP||CUR||{x:0,y:0,z:0},lim={X:GEOM.bx,Y:GEOM.by,Z:GEOM.bz}[a],nv=Math.max(0,Math.min(lim,c[a.toLowerCase()]+d)),t={x:c.x,y:c.y,z:c.z};t[a.toLowerCase()]=nv;
    plan=holdPlan(t.x,t.y,t.z,feedXY(50),Math.min(10,LIM.z||10))}
@@ -1895,7 +1974,9 @@ function holdMove(tx,ty,tz,vxy,vz,extra){holdRun(holdPlan(tx,ty,tz,vxy,vz,extra)
 async function guardedMove(p,call){let started=false;const go=()=>{if(!started){started=true;holdRun(p)}};const tm=setTimeout(go,350);
   const r=await call();clearTimeout(tm);
   if(r.error){HOLD=0;if(started)setPosTarget(p.prev.x,p.prev.y,p.prev.z);toast(r.error)}else go();return r}
-async function loadLimits(){toast('Читаю настройки платы (M503)…');const r=await api('/api/limits?refresh=1');if(r.error){toast(r.error);return}const v=r&&r.limits&&r.limits.vmax;if(v){LIM={x:v.x,y:v.y,z:v.z};const e=$('#lims');if(e)e.textContent='Скорости из прошивки (M203), мм/с: X'+v.x+' Y'+v.y+' Z'+v.z+(v.e?' E'+v.e:'')}}
+function showLimits(v){if(!v)return;LIM={x:v.x,y:v.y,z:v.z};$('#lims').textContent='Макс. скорости (M203), мм/с: X '+v.x+' · Y '+v.y+' · Z '+v.z+(v.e?' · E '+v.e:'')}
+async function loadLimits(){toast('Читаю настройки платы (M503)…');const r=await api('/api/limits?refresh=1');if(r.error){toast(r.error);return}
+  const v=r.limits&&r.limits.vmax;if(v){showLimits(v);toast('Скорости считаны')}else toast(r.note||'Прошивка не прислала M203')}
 function fitViews(){
   try{const mq=window.matchMedia&&window.matchMedia('(min-width:1450px) and (min-height:640px)'),root=document.documentElement.style,gr=document.querySelector('.grid');
     if(!mq||!mq.matches){root.removeProperty&&root.removeProperty('--vw');if(gr&&gr.style)gr.style.gridTemplateRows='';return}
@@ -1966,6 +2047,13 @@ function inEl(t,id){return !!(t&&t.closest&&t.closest(id))}
   T.addEventListener('pointerleave',()=>{if(TW)$('#tHov').style.display='none'});F.addEventListener('pointerleave',()=>{if(TW)$('#fHov').style.display='none'});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ARM){ARM=null;syncArm()}})})();
 function setT(code,id){const v=$('#'+id).value;if(v==='')return toast('Введи температуру');cmd(code+' S'+(+v))}
+const printing=()=>/PRINT|PAUSE/.test(LASTS.state||'');
+const SPOIL=['Выключить нагрев во время печати?','Пластик перестанет плавиться, печать будет испорчена.','Выключить',1];
+async function heatOff(code){if(printing()&&!await ask(...SPOIL))return;cmd(code+' S0')}
+async function coolAll(){if(printing()&&!await ask(...SPOIL))return;
+  tab('log');log('> остудить всё: M104 S0, M140 S0');
+  for(const c of['M104 S0','M140 S0']){const r=await api('/api/console',{cmd:c});if(r.error){log(r.error,'#ef5350');toast(r.error);return}}
+  log('нагрев сопла и стола выключен');toast('Нагрев выключен');tick()}
 // ---- настройки
 function openSet(){$('#ov').classList.add('on');loadSettings()}function closeSet(){$('#ov').classList.remove('on')}
 async function loadSettings(){
@@ -1973,7 +2061,15 @@ async function loadSettings(){
   $('#sip').value=s.printer_ip||'';$('#sow').checked=!!s.overwrite;$('#sbg').checked=!!s.background_poll;$('#smax').value=s.max_name;
   $('#srem').checked=!!s.remote;$('#sauto').checked=!!s.autostart;$('#autorow').style.display=s.can_autostart?'':'none';$('#ver').textContent='v'+s.version;
   if(s.geom){GEOM=s.geom;$('#gbx').value=GEOM.bx;$('#gby').value=GEOM.by;$('#gbz').value=GEOM.bz;$('#gzb').checked=!!GEOM.z_bed;buildTwin();updateTwin(LASTS)}
-  $('#remote').textContent=s.remote?('Адрес для телефона: '+s.urls.join('  или  ')+(s.pin?'   PIN: '+s.pin:'')):'Выключено: панель доступна только на этом компьютере.'}
+  showLimits(s.limits&&s.limits.vmax);
+  const rm=$('#remote');rm.hidden=!s.remote;rm.textContent='';
+  if(s.remote){const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+    const a=el('div',null,'Открой на телефоне (он должен быть в той же Wi-Fi-сети): ');s.urls.forEach((u,i)=>{if(i)a.append(' или ');a.append(el('code',null,u))});rm.append(a);
+    if(s.pin){const p=el('div','row');p.style.margin='0';p.append(el('span','mut','PIN'),el('span','pin',s.pin),el('span','sp'));
+      const b=el('button','sm','Новый PIN');b.onclick=newPin;p.append(b);rm.append(p)}}}
+async function newPin(){if(!await ask('Сменить PIN?','Телефоны, на которых уже входили, попросят ввести новый.','Сменить'))return;
+  const r=await api('/api/settings',{new_pin:true});toast(r.error||'PIN изменён');loadSettings()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('on')&&!$('#dlg').classList.contains('on'))closeSet()});
 async function saveIp(){const r=await api('/api/settings',{printer_ip:$('#sip').value});toast(r.error||'Сохранено');tick();loadSettings()}
 async function saveOpt(){const r=await api('/api/settings',{overwrite:$('#sow').checked,background_poll:$('#sbg').checked,max_name:+$('#smax').value,bed_x:+$('#gbx').value,bed_y:+$('#gby').value,bed_z:+$('#gbz').value,z_bed:$('#gzb').checked});toast(r.error||'Сохранено');loadSettings()}
 async function saveRemote(){const r=await api('/api/settings',{remote:$('#srem').checked});toast(r.error||'Сохранено');loadSettings()}
@@ -1981,8 +2077,8 @@ async function saveAuto(){const r=await api('/api/settings',{autostart:$('#sauto
 async function findPrinter(){toast('Ищу принтер в сети…');const r=await api('/api/discover',{});
   if(r.error){toast('Ошибка поиска: '+r.error);return}const sc=(r.scanned||[]).map(b=>b+'.1–254').join(', ');
   if(!r.found||!r.found.length){toast('Принтер не найден. Проверено: '+(sc||'ничего')+'. Включён ли принтер и в той же ли он сети? Можно ввести IP вручную.');return}
-  if(r.found.length>1&&!confirm('Найдено несколько: '+r.found.join(', ')+'. Взять первый?'))return;
-  $('#sip').value=r.found[0];saveIp()}
+  let ip=r.found[0];if(r.found.length>1){ip=await ask('Найдено несколько принтеров','Выбери, к какому подключаться:',null,0,r.found);if(!ip)return}
+  $('#sip').value=ip;saveIp()}
 renderRef();buildTwin();applyTheme();loadSettings();tick();setInterval(tick,3000);
 </script></body></html>
 """
