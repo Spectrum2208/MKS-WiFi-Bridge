@@ -18,6 +18,7 @@ import hmac
 import http.client
 import itertools
 import json
+import math
 import os
 import re
 import secrets
@@ -53,6 +54,7 @@ os.makedirs(CFG_DIR, exist_ok=True)
 CFG_PATH = os.path.join(CFG_DIR, "config.json")
 LAYERS_PATH = os.path.join(CFG_DIR, "layers.json")
 LOG_PATH = os.path.join(CFG_DIR, "mks_bridge.log")
+OUTL_DIR = os.path.join(CFG_DIR, "outlines")   # контуры моделей залитых файлов (для отрисовки печати в панели)
 
 DEFAULTS = {"printer_ip": "", "port": 5000, "max_name": 30, "ellipsis": "~", "overwrite": True,
             "remote": False, "pin": "", "tcp_port": 8080, "http_port": 80, "background_poll": True,
@@ -149,11 +151,16 @@ def index_gcode(path):
     return {"size": len(data), "offsets": offs, "zs": zs, "est": est}
 
 
-def layer_info(file, progress, z):
+def layer_info(file, progress, z, sd=None):
     """Слой точно по высоте Z (из g-code); процент выполнения страхует от подъёмов Z при перемещениях."""
-    idx = next((LAYERS[k.lower()] for k in (file, STATE["last_name"]) if k and k.lower() in LAYERS), None)
+    idx = LAYERS.get(job_key(file))
     if not idx or not idx["offsets"]:
         return None
+    if sd and abs(sd[1] - idx["size"]) <= 64:   # Marlin сообщил позицию в файле: слой известен точно
+        frac = sd[0] / float(sd[1])
+        eta = int(idx["est"] * (1 - frac)) if idx["est"] else None
+        return {"layer": max(1, bisect.bisect_right(idx["offsets"], sd[0])), "layers": len(idx["offsets"]),
+                "eta": eta, "layer_exact": True}
     n, zs = len(idx["offsets"]), idx.get("zs") or []
     lp = None if progress is None else bisect.bisect_right(idx["offsets"], idx["size"] * progress / 100.0)
     layer, exact = lp, False
@@ -169,6 +176,169 @@ def layer_info(file, progress, z):
         return None
     eta = None if not idx["est"] or progress is None else int(idx["est"] * (100 - progress) / 100.0)
     return {"layer": layer, "layers": n, "eta": eta, "layer_exact": exact}
+
+
+# ------------------------------------------------- контуры модели (из g-code) ---
+# По каждому слою — линии внешних стенок в десятых долях мм. Панель рисует по ним текущий слой и силуэт модели.
+
+OUTER_TYPES = (b"outer wall", b"overhang wall", b"external perimeter", b"overhang perimeter", b"wall-outer")
+_GWORD = re.compile(rb"([A-Z])\s*(-?\d*\.?\d+)")
+_LAYER_MARK = re.compile(rb";LAYER_CHANGE|;LAYER:\d+")   # те же метки, что в index_gcode: номера слоёв должны совпадать
+
+
+def outline_gcode(path):
+    """-> (слои, высоты слоёв). В слое — линии внешних стенок. Если стенок в слое нет (калибровки Orca рисуют
+    линии как ;TYPE:Custom), берём все линии слоя. Нет меток слоёв вовсе — весь файл считается одним слоем."""
+    walls, other, zs = [], [], []
+    cw = co = poly = target = None
+    x = y = z = e = 0.0
+    abs_xyz = abs_e = True
+    typed = outer = marked = False
+
+    def close():
+        nonlocal poly
+        if poly and len(poly) >= 4:
+            target.append(poly)
+        poly = None
+
+    def new_layer():
+        nonlocal cw, co
+        close()
+        cw, co = [], []
+        walls.append(cw)
+        other.append(co)
+        zs.append(None)
+
+    def add(px, py, step):
+        qx, qy = round(px * 10), round(py * 10)
+        if abs(qx - poly[-2]) + abs(qy - poly[-1]) >= step:
+            poly.extend((qx, qy))
+
+    with open(path, "rb") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line[:1] == b";":
+                if _LAYER_MARK.match(line):
+                    if not marked:   # всё, что набралось до первой метки (стартовый код), к слоям не относится
+                        walls.clear(), other.clear(), zs.clear()
+                        poly, marked = None, True
+                    new_layer()
+                elif line.startswith(b";TYPE:"):
+                    close()
+                    typed = True
+                    outer = line[6:].strip().lower().startswith(OUTER_TYPES)
+                continue
+            code = line.split(b";", 1)[0].upper()
+            cmd = code.split(None, 1)[0] if code else b""
+            if cmd in (b"G0", b"G1", b"G2", b"G3"):
+                w = {k.decode(): float(v) for k, v in _GWORD.findall(code[len(cmd):])}
+                nx = (w["X"] if abs_xyz else x + w["X"]) if "X" in w else x
+                ny = (w["Y"] if abs_xyz else y + w["Y"]) if "Y" in w else y
+                nz = (w["Z"] if abs_xyz else z + w["Z"]) if "Z" in w else z
+                ne = (w["E"] if abs_e else e + w["E"]) if "E" in w else e
+                if ne > e + 1e-5 and (nx != x or ny != y):
+                    if cw is None:
+                        new_layer()   # меток слоёв (пока) нет: копим в неявный слой
+                    dst = cw if outer or not typed else co
+                    if poly is not None and target is not dst:
+                        close()
+                    if poly is None:
+                        poly, target = [round(x * 10), round(y * 10)], dst
+                    if zs[-1] is None:
+                        zs[-1] = round(nz, 3)
+                    if cmd in (b"G2", b"G3") and ("I" in w or "J" in w):   # дуга: режем на хорды
+                        cx, cy = x + w.get("I", 0.0), y + w.get("J", 0.0)
+                        a0, a1 = math.atan2(y - cy, x - cx), math.atan2(ny - cy, nx - cx)
+                        sweep = a1 - a0
+                        if cmd == b"G2" and sweep >= 0:
+                            sweep -= 2 * math.pi
+                        elif cmd == b"G3" and sweep <= 0:
+                            sweep += 2 * math.pi
+                        r = math.hypot(x - cx, y - cy)
+                        n = max(2, min(72, int(abs(sweep) * r / 1.0)))
+                        for i in range(1, n):
+                            a = a0 + sweep * i / n
+                            add(cx + r * math.cos(a), cy + r * math.sin(a), 2)
+                    add(nx, ny, 2)
+                elif "E" in w or "X" in w or "Y" in w:
+                    close()   # перемещение без подачи разрывает линию
+                x, y, z, e = nx, ny, nz, ne
+            elif cmd == b"G90":
+                abs_xyz = abs_e = True   # как в Marlin: G90/G91 переключают и экструдер
+            elif cmd == b"G91":
+                abs_xyz = abs_e = False
+            elif cmd == b"M82":
+                abs_e = True
+            elif cmd == b"M83":
+                abs_e = False
+            elif cmd == b"G92":
+                w = {k.decode(): float(v) for k, v in _GWORD.findall(code[3:])}
+                x, y, z, e = w.get("X", x), w.get("Y", y), w.get("Z", z), w.get("E", e)
+    close()
+    layers = [cw if cw else [_thin(p, 4) for p in co] for cw, co in zip(walls, other)]
+    if not typed:   # слайсер не размечает типы линий: взяли всё подряд, проредим погрубее
+        layers = [[_thin(p, 10) for p in lay] for lay in layers]
+    return layers, zs
+
+
+def _thin(p, step):
+    out = p[:2]
+    for i in range(2, len(p), 2):
+        if abs(p[i] - out[-2]) + abs(p[i + 1] - out[-1]) >= step or i == len(p) - 2:
+            out.extend(p[i:i + 2])
+    return out
+
+
+def outline_save(name, layers, zs):
+    """Контур + сводка для панели: ширина модели по X на каждом слое (силуэт спереди) и «призрак» модели сверху."""
+    ext = []
+    for lay in layers:
+        xs = [v for p in lay for v in p[0::2]]
+        ext.append([min(xs), max(xs)] if xs else None)
+    pick = sorted({round(i * (len(layers) - 1) / 15) for i in range(16)}) if layers else []
+    ghost = [_thin(p, 8) for i in pick for p in layers[i]]
+    data = {"v": 1, "layers": layers, "zs": zs, "ext": ext, "ghost": ghost}
+    try:
+        os.makedirs(OUTL_DIR, exist_ok=True)
+        with open(os.path.join(OUTL_DIR, name.lower() + ".json"), "w", encoding="utf-8") as f:
+            json.dump(data, f, separators=(",", ":"))
+        files = sorted((os.path.join(OUTL_DIR, n) for n in os.listdir(OUTL_DIR)), key=os.path.getmtime)
+        for old in files[:-12]:   # храним последние 12 файлов
+            os.remove(old)
+    except OSError as ex:
+        log("контур %s не сохранён: %s" % (name, ex))
+    OUTL_CACHE.clear()
+
+
+OUTL_CACHE = {}
+
+
+def outline_load(key):
+    if not re.fullmatch(r"[\w.\-~]+", key or ""):
+        return None
+    if key not in OUTL_CACHE:
+        try:
+            with open(os.path.join(OUTL_DIR, key + ".json"), encoding="utf-8") as f:
+                OUTL_CACHE.clear()
+                OUTL_CACHE[key] = json.load(f)
+        except (OSError, ValueError):
+            return None
+    return OUTL_CACHE[key]
+
+
+def job_key(file):
+    """Ключ залитого через мост файла, который сейчас печатается (имя на принтере в нижнем регистре).
+    Имя от принтера (M994) главнее: экран мог запустить другой файл. Пока принтер имя не сообщает
+    (у MKS TFT, например, во время нагрева — «M994 ;0»), берём последний файл, запущенный самим мостом."""
+    k = (file or STATE["last_name"] or "").lower()
+    return k if k in LAYERS else None
+
+
+def remember_started(name):
+    STATE["last_name"] = CFG["last_print"] = name   # в настройках, чтобы перезапуск моста не стирал
+    cfg_save()
 
 
 # ----------------------------------------------------------- поиск принтера ---
@@ -324,13 +494,16 @@ class Printer:
                 try:
                     d = s.recv(4096)
                 except socket.timeout:
-                    if buf:
+                    if buf and not isinstance(until, tuple):
                         break
                     continue
                 if not d:
                     break
                 buf += d
-                if until and until.lower().encode() in buf.lower():
+                if isinstance(until, tuple):
+                    if all(u.encode() in buf for u in until):
+                        break
+                elif until and until.lower().encode() in buf.lower():
                     break
         return buf.decode(errors="replace")
 
@@ -465,29 +638,43 @@ class Printer:
         cmds = ["M105", "M997", "M114"]
         if is_printing(cached) or not cached:
             cmds = ["M105", "M997", "M27", "M992", "M994", "M114"]   # подробности нужны только во время печати
-        text = self.cmd(cmds, wait=1.5, rediscover=not quiet)
+        # Во время печати Marlin отвечает с опозданием и пачками (вперемешку с «busy: processing»), часть ответов
+        # приходит уже в следующее соединение. Поэтому ждём, пока придут температура и координаты, а из пачки
+        # берём последние (самые свежие) значения.
+        printing = is_printing(cached)
+        text = self.cmd(cmds, wait=3.0 if printing else 1.5, until=("T:", "Count"), rediscover=not quiet)
+        last = lambda rx: (re.findall(rx, text) or [None])[-1]
         st = {"state": "unknown", "progress": None, "nozzle": None, "bed": None,
-              "elapsed": None, "file": None, "pos": None}
+              "elapsed": None, "file": None, "pos": None, "sd": None, "left": None}
         m = re.search(r"M997\s+([A-Z ]+)", text)
         if m:
             st["state"] = m.group(1).strip()
         m = re.search(r"M27\s+(\d+)", text)
         if m:
             st["progress"] = int(m.group(1))
-        m = re.search(r"T:\s*([\d.]+)\s*/\s*([\d.]+)\s+B:\s*([\d.]+)\s*/\s*([\d.]+)", text)
+        m = last(r"T:\s*([\d.]+)\s*/\s*([\d.]+)\s+B:\s*([\d.]+)\s*/\s*([\d.]+)")
         if m:
-            st["nozzle"] = (float(m.group(1)), float(m.group(2)))
-            st["bed"] = (float(m.group(3)), float(m.group(4)))
+            st["nozzle"] = (float(m[0]), float(m[1]))
+            st["bed"] = (float(m[2]), float(m[3]))
+        # экран MKS на M27 отвечает сам и не знает прогресса печати, которую ведёт плата; Marlin сообщает точно
+        m = last(r"SD printing byte (\d+)/(\d+)")
+        if m and int(m[1]):
+            st["sd"] = (int(m[0]), int(m[1]))
+        m = last(r"M73 Progress: (\d+)%(?:; Time left: (\d+)m)?")
+        if m and m[1]:
+            st["left"] = int(m[1]) * 60
         m = re.search(r"M992\s+(\d+):(\d+):(\d+)", text)
         if m:
             st["elapsed"] = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
         m = re.search(r"M994\s+/?([^\r\n;]+\.(?:gcode|gco|gc|g))", text, re.I)
         if m:
             st["file"] = m.group(1).strip()
-        m = re.search(r"X:\s*(-?[\d.]+)\s+Y:\s*(-?[\d.]+)\s+Z:\s*(-?[\d.]+)(?:\s+E:\s*(-?[\d.]+))?", text)
+        # после координат Marlin пишет «Count X:.. Y:.. Z:..» — это счётчики шагов моторов, их пропускаем
+        m = last(r"(?<!Count )X:\s*(-?[\d.]+)\s+Y:\s*(-?[\d.]+)\s+Z:\s*(-?[\d.]+)(?:\s+E:\s*(-?[\d.]+))?")
         if m:
-            st["pos"] = {"x": float(m.group(1)), "y": float(m.group(2)), "z": float(m.group(3)),
-                         "e": float(m.group(4)) if m.group(4) else None}
+            st["pos"] = {"x": float(m[0]), "y": float(m[1]), "z": float(m[2]), "e": float(m[3]) if m[3] else None}
+        if st["sd"] and not st["progress"]:
+            st["progress"] = st["sd"][0] * 100 // st["sd"][1]
         st["t"] = time.time()
         return st
 
@@ -596,6 +783,8 @@ class Printer:
         raise RuntimeError("Принтер не удалил файл ни одним из вариантов M30.")
 
     def start_print(self, name):
+        CFG["print_started"] = time.time()
+        cfg_save()
         self.cmd(["M23 " + name], wait=1.0)
         time.sleep(0.5)
         self.cmd(["M24"], wait=1.0)
@@ -691,6 +880,13 @@ def run_job(printer, path, orig_name, start, ui):
                 raise RuntimeError("Нет связи с принтером %s (%s). Открой настройки панели и нажми «Найти принтер»."
                                    % (printer.ip, e))
             idx = index_gcode(path)
+            try:
+                t0 = time.time()
+                outl, outl_zs = outline_gcode(path)
+                log("контур: %d слоёв за %.1f с" % (len(outl), time.time() - t0))
+            except Exception as ex:
+                outl = None
+                log("контур не построен: %r" % (ex,))
 
             existing = {n.lower() for n in printer.files()}
             stem, ext = os.path.splitext(name)
@@ -745,7 +941,9 @@ def run_job(printer, path, orig_name, start, ui):
             log("OK: %s залит и подтверждён" % name)
             LAYERS[name.lower()] = idx
             layers_save()
-            STATE["last_name"] = name
+            if outl is not None:
+                outline_save(name, outl, idx["zs"] if len(idx["zs"]) == len(outl) else outl_zs)
+            remember_started(name)
 
             tail = " (исходное имя: %s)" % orig_base if renamed else ""
             if start:
@@ -803,7 +1001,8 @@ SAFE_WHILE_PRINTING = {"M105", "M114", "M115", "M27", "M25", "M24", "M26", "M220
 LOCAL_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]", "::1")
 FAILS = {}
-ACTIVITY = {"t": 0.0}   # когда последний раз открывали панель
+ACTIVITY = {"t": 0.0}
+FILES_SEEN = []   # последний полученный список файлов: во время печати принтер его не отдаёт   # когда последний раз открывали панель
 MAX_BODY = 600 * 1024 * 1024
 
 
@@ -901,11 +1100,31 @@ def make_handler(printer):
             elif p == "/api/list":
                 if self._guard_printer():
                     try:
-                        self._json(200, {"files": printer.files()})
+                        lst = printer.files()
+                        if lst:
+                            FILES_SEEN[:] = lst
+                        elif FILES_SEEN and is_printing(printer._cache[1] or {}):
+                            self._json(200, {"files": FILES_SEEN, "cached": True})
+                            return
+                        self._json(200, {"files": lst})
                     except Exception as e:
                         self._json(502, {"error": str(e)})
             elif p == "/api/settings":
                 self._json(200, self._settings())
+            elif p == "/api/outline":
+                q = parse_qs(urlparse(self.path).query)
+                d = outline_load(q.get("file", [""])[0])
+                if d is None:
+                    self._json(404, {"error": "контура нет"})
+                elif "layer" in q:
+                    try:
+                        n = int(q["layer"][0])
+                    except ValueError:
+                        n = 0
+                    lay = d["layers"][n - 1] if 1 <= n <= len(d["layers"]) else []
+                    self._json(200, {"layer": n, "polys": lay})
+                else:
+                    self._json(200, {"layers": len(d["layers"]), "zs": d["zs"], "ext": d["ext"], "ghost": d["ghost"]})
             elif p == "/api/limits":
                 if self._guard_printer():
                     try:
@@ -939,9 +1158,17 @@ def make_handler(printer):
                 out.update(st)
                 out["online"] = True
                 if is_printing(st):
-                    li = layer_info(st.get("file"), st.get("progress"), (st.get("pos") or {}).get("z"))
+                    li = layer_info(st.get("file"), st.get("progress"), (st.get("pos") or {}).get("z"), st.get("sd"))
                     if li:
                         out.update(li)
+                    if st.get("left") is not None:   # оставшееся время от слайсера (M73) точнее нашей оценки
+                        out["eta"] = st["left"]
+                    t0 = CFG.get("print_started") or 0
+                    if not st.get("elapsed") and 0 < time.time() - t0 < 7 * 86400:   # экран MKS тут тоже отвечает нулём
+                        out["elapsed"] = int(time.time() - t0)
+                    k = job_key(st.get("file"))
+                    if k and os.path.exists(os.path.join(OUTL_DIR, k + ".json")):
+                        out["outline"] = k
             except Exception as e:
                 out["error"] = str(e)
             out["ip"] = printer.ip  # адрес мог поменяться при автопоиске прямо во время запроса
@@ -1126,7 +1353,7 @@ def make_handler(printer):
                     self._json(404, {"error": "Файла нет на принтере."})
                     return
                 printer.start_print(name)
-                STATE["last_name"] = name
+                remember_started(name)
                 self._json(200, {"ok": True})
             except Exception as e:
                 self._json(502, {"error": str(e)})
@@ -1398,6 +1625,7 @@ def main():
 
     cfg_load()
     layers_load()
+    STATE["last_name"] = CFG.get("last_print")
     if a.ip:
         CFG["printer_ip"] = a.ip
     if a.port:
@@ -1482,6 +1710,7 @@ header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}h
  .xl .sv{width:min(calc(100cqw - 172px),calc((100cqh - 40px)*.634))}
  .xin .xl{flex:none;width:auto}
  #files,#reflist{flex:1;min-height:40px;max-height:none}#log{flex:1;height:auto;min-height:40px}.cv{flex:1;height:auto;min-height:100px}}
+.sv.printing #tHead,.sv.printing #fHead{opacity:.45;transition:opacity .4s}
 .card h2 .dim{text-transform:none;letter-spacing:0;font-weight:400;opacity:.75}.card h2 .dim::before{content:"·";margin-right:6px}
 .badge{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bd)}.badge.on{background:var(--acc);color:#fff}.badge.off{background:var(--bad);color:#fff}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px}.kv span:nth-child(odd){color:var(--mut)}
@@ -1726,7 +1955,10 @@ async function tick(){
   $('#layer').textContent=s.layers?(s.layer_exact?'':'≈ ')+s.layer+' / '+s.layers:'—';
   $('#zv').textContent=s.pos&&s.pos.z!=null?s.pos.z.toFixed(2)+' мм':'—';
   $('#elapsed').textContent=fmt(s.elapsed);$('#eta').textContent=s.eta!=null?'≈ '+fmt(s.eta):'—';
-  $('#file').textContent=s.file||'';$('#err').textContent=s.error||'';
+  // начало печати: прошивка ждёт нагрева (M190/M109) и на координаты не отвечает — пишем, что происходит
+  const warm=(k,n)=>{const t=s[k];return t&&t[1]>0&&t[0]<t[1]-2?'Нагрев '+n+': '+t[0].toFixed(0)+' → '+t[1].toFixed(0)+'°':''};
+  const heat=/PRINT/.test(s.state||'')&&(s.progress||0)<1?warm('bed','стола')||warm('nozzle','сопла'):'';
+  $('#file').textContent=heat||s.file||'';$('#err').textContent=s.error||'';
   HIST=s.history||[];NOW=s.now||Math.floor(Date.now()/1000);drawChart();jobs(s.jobs||[]);updateTwin(s);
   
 }
@@ -1800,6 +2032,7 @@ function sendFiles(fl){[...fl].forEach(f=>{
 async function loadFiles(){
   const box=$('#files');box.textContent='Загрузка…';const r=await api('/api/list');if(r.error){box.textContent=r.error;return}
   box.textContent='';if(!r.files.length){box.textContent='Файлов нет';return}
+  if(r.cached){const n=document.createElement('div');n.className='mut sm';n.textContent='Во время печати принтер не отдаёт список: показан последний известный.';box.appendChild(n)}
   r.files.forEach(n=>{const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.value=n;l.appendChild(c);l.appendChild(document.createTextNode(n));box.appendChild(l)})}
 const sel=()=>[...document.querySelectorAll('#files input:checked')].map(c=>c.value);
 async function delSel(){const n=sel();if(!n.length){toast('Отметь файлы для удаления');return}
@@ -1896,6 +2129,9 @@ function buildTwin(){
    '<line x1="'+(ox-9)+'" y1="'+(oy-6)+'" x2="'+(ox-9)+'" y2="'+(oy+bh+6)+'" style="stroke:var(--mut)" stroke-width="3" opacity=".7"/><line x1="'+(ox+bw+9)+'" y1="'+(oy-6)+'" x2="'+(ox+bw+9)+'" y2="'+(oy+bh+6)+'" style="stroke:var(--mut)" stroke-width="3" opacity=".7"/>'+
    '<rect id="tBed" x="'+ox+'" y="'+oy+'" width="'+bw+'" height="'+bh+'" rx="4" fill="#64748b" fill-opacity=".9" style="stroke:var(--mut)"/>'+grid+
    '<circle cx="'+ox+'" cy="'+(oy+bh)+'" r="2.5" style="fill:var(--fg)"/>'+
+   '<g id="tModel" transform="translate('+ox+','+(oy+bh)+') scale('+(sc/10)+','+(-sc/10)+')" style="display:none;pointer-events:none">'+
+    '<path id="tGhost" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path id="tLayH" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#000" stroke-opacity=".45" stroke-width="3.2"/>'+
+    '<path id="tLay" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-width="1.6"/></g>'+
    '<g id="tGant"><rect x="'+(ox-14)+'" y="-7" width="'+(bw+28)+'" height="3" rx="1.5" '+rod+' opacity=".85"/><rect x="'+(ox-14)+'" y="4" width="'+(bw+28)+'" height="3" rx="1.5" '+rod+' opacity=".85"/></g>'+
    '<text id="tBedT" x="'+(ox+bw/2)+'" y="'+(oy+bh-8)+'" text-anchor="middle" font-size="9" '+LBL+'>—</text>'+
    '<rect id="tZone" x="'+(ox-SNAP)+'" y="'+(oy-SNAP)+'" width="'+(bw+2*SNAP)+'" height="'+(bh+2*SNAP)+'" rx="6" style="fill:var(--acc);fill-opacity:.09;stroke:var(--acc);stroke-opacity:.5;display:none;pointer-events:none" stroke-width="1"/>'+
@@ -1916,6 +2152,9 @@ function buildTwin(){
    '<g id="fBedG" style="cursor:pointer"><rect id="fBed" x="'+ox+'" y="0" width="'+bw+'" height="10" rx="2" fill="#64748b" style="stroke:var(--mut)"/>'+
    '<rect x="'+(rx1-9)+'" y="10" width="18" height="7" rx="2" '+rod+'/><rect x="'+(rx2-9)+'" y="10" width="18" height="7" rx="2" '+rod+'/>'+
    '<text id="fBedT" x="'+(ox+bw/2)+'" y="8" text-anchor="middle" font-size="7.5" '+LBL+'>—</text>'+
+   '<g id="fModel" transform="translate('+ox+',0) scale('+sc+','+(-sc)+')" style="display:none;pointer-events:none">'+
+    '<path id="fSil" style="fill:var(--fg);fill-opacity:.12"/>'+
+    '<path id="fSilDone" style="fill:var(--fg);fill-opacity:.3"/></g>'+
    '<rect x="'+ox+'" y="-4" width="'+bw+'" height="24" '+HIT+'/><rect id="fRingB" x="'+(ox-3)+'" y="-4" width="'+(bw+6)+'" height="24" rx="4" '+RING+'/></g>'+
    '<g id="fGantry"><line x1="'+(ox-8)+'" y1="44" x2="'+(ox+bw+8)+'" y2="44" style="stroke:var(--mut)" stroke-width="4" stroke-linecap="round"/>'+
    '<g id="fHead" style="cursor:pointer"><rect x="-19" y="14" width="38" height="22" rx="3" style="fill:var(--card);stroke:var(--fg)" stroke-width="1.5"/><circle cx="0" cy="25" r="6" fill="none" style="stroke:var(--mut)"/>'+
@@ -1941,7 +2180,7 @@ function buildTwin(){
    '<line id="eMelt" x1="90" y1="260.5" x2="90" y2="268" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" style="opacity:0"/>'+
    '<g transform="translate(34,262)"><circle r="17" fill="none" style="stroke:var(--mut)" stroke-width="2"/><g id="eBlades" class="blades"><path d="M0 0 L-3 -13 A13 13 0 0 1 8 -10Z M0 0 L13 -3 A13 13 0 0 1 10 8Z M0 0 L3 13 A13 13 0 0 1 -8 10Z M0 0 L-13 3 A13 13 0 0 1 -10 -8Z" '+rod+'/></g></g>';
   $('#dimTop').textContent='X '+g.bx+' × Y '+g.by+' мм';$('#dimFront').textContent='X '+g.bx+' × Z '+g.bz+' мм';
-  document.querySelectorAll('.ring').forEach(fixRing);
+  document.querySelectorAll('.ring').forEach(fixRing);drawModel();
   zTitles();renderE();syncArm();fitViews();renderPos()}
 // ---- плавное движение каретки и стола: на экране едут с реальной скоростью (≈100 мм/с по XY, 25 мм/с по Z), но любой переезд укладывается в ~1.5 с
 let ANIM=true,CUR=null,TGTP=null,MOTION=null,posRaf=0,posT=0,HOLD=0,HOMING=0,LASTGOOD=Date.now(),EVER=false,LIM={x:null,y:null,z:null},LIMTRIED=false;
@@ -1964,8 +2203,9 @@ function setVeil(s,fresh){
   if(!EVER&&Date.now()-T0<5000){msg='Загрузка…'}
   else if(s.online===false||(s.error&&!fresh)){msg='Нет связи с принтером';sub=(s.error?String(s.error).replace(/\.?\s*$/,'. '):'')+'Показано последнее известное положение.'}
   else if(!fresh&&homing()){msg='Принтер едет домой';sub='Во время парковки (G28) прошивка не отвечает на запросы — это нормально. Положение обновится, когда он закончит.'}
-  else if(!fresh&&Date.now()-LASTGOOD>25000){msg='Принтер долго не отвечает';sub='Возможно, он занят движением. Показано последнее известное положение.'}
-  const wait=msg==='Загрузка…'||msg==='Принтер едет домой';
+  else if(!fresh&&!CUR&&/PRINT|PAUSE/.test(s.state||'')){msg='Ждём координаты от принтера';sub='Пока принтер греется или паркуется, он не сообщает положение. Модель на столе появится сразу, как только он ответит.'}
+  else if(!fresh&&Date.now()-LASTGOOD>25000&&!/PRINT|PAUSE/.test(s.state||'')){msg='Принтер долго не отвечает';sub='Возможно, он занят движением. Показано последнее известное положение.'}
+  const wait=msg==='Загрузка…'||msg==='Принтер едет домой'||msg==='Ждём координаты от принтера';
   document.querySelectorAll('.veil').forEach(v=>{v.hidden=!msg;if(msg){v.children[0].textContent=msg;v.children[1].textContent=sub;v.children[2].style.display=wait?'none':''}})}
 // парковку отслеживает мост (s.homing); HOMING закрывает несколько секунд до первого ответа моста после нажатия
 function homing(){return !!LASTS.homing||(HOMING&&Date.now()-HOMING<4000)}
@@ -2011,7 +2251,28 @@ function updateTwin(s){
   const f=s.fan;$('#fanv').textContent=f==null?'—':f+'%';
   const bl=$('#eBlades');bl.style.animationPlayState=f>0?'running':'paused';bl.style.animationDuration=(f>0?(1.6-1.45*f/100):1)+'s';
   if(f!=null&&document.activeElement!==$('#fanr')){$('#fanr').value=f;fanLabel()}
-  if(p&&p.e!=null)setE(p.e)}
+  if(p&&p.e!=null)setE(p.e);updateModel(s)}
+// ---- модель на столе во время печати: контур текущего слоя сверху, силуэт с напечатанной частью спереди
+let OL={id:null,sum:null,layer:0,cur:'',ghost:'',show:false};
+const polyD=ps=>ps.map(p=>'M'+p[0]+' '+p[1]+'L'+p.slice(2).join(' ')).join('');
+// силуэт спереди: каждый слой — полоска шириной с модель по X на своей высоте. Полосками, а не одним контуром:
+// при последовательной печати объектов высота сбрасывается в ноль, и следующий объект растёт заново
+function silD(upto){const s=OL.sum,d=[];
+  for(let i=0;i<Math.min(upto,s.ext.length);i++){const e=s.ext[i],z1=s.zs[i];if(!e||z1==null)continue;
+    const p=s.zs[i-1],z0=p!=null&&p<z1&&z1-p<2?p:Math.max(0,z1-.2);
+    d.push('M'+e[0]/10+' '+z0+'H'+e[1]/10+'V'+z1+'H'+e[0]/10+'Z')}
+  return d.join('')}
+function drawModel(){const on=OL.show&&!!OL.sum,t=$('#tModel'),f=$('#fModel');if(!t||!f)return;t.style.display=f.style.display=on?'':'none';if(!on)return;
+  $('#tGhost').setAttribute('d',OL.ghost);$('#tLay').setAttribute('d',OL.cur);$('#tLayH').setAttribute('d',OL.cur);
+  $('#fSil').setAttribute('d',silD(1e9));$('#fSilDone').setAttribute('d',silD(OL.layer))}
+function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').classList.toggle('printing',pr);$('#svgFront').classList.toggle('printing',pr);
+  OL.show=pr&&!!s.outline;
+  if(OL.show&&OL.id!==s.outline){const id=s.outline;OL={id,sum:null,layer:0,cur:'',ghost:'',show:true};
+    api('/api/outline?file='+encodeURIComponent(id)).then(r=>{if(OL.id!==id||r.error)return;OL.sum=r;OL.ghost=polyD(r.ghost);drawModel()})}
+  const L=s.layer||(OL.sum&&OL.sum.layers===1?1:0);   // файл без меток слоёв — один слой
+  if(OL.show&&OL.sum&&L&&L!==OL.layer){OL.layer=L;const id=OL.id;
+    api('/api/outline?file='+encodeURIComponent(id)+'&layer='+L).then(r=>{if(OL.id!==id||r.error)return;OL.cur=polyD(r.polys);drawModel()})}
+  drawModel()}
 function setE(v){if(tgtE==null||Math.abs(v-visE)>60)visE=v;tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
 function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),25*dt);renderE();
   eRaf=Math.abs(tgtE-visE)>.005?requestAnimationFrame(animE):0}
@@ -2101,7 +2362,7 @@ async function findPrinter(){toast('Ищу принтер в сети…');const
   if(!r.found||!r.found.length){toast('Принтер не найден. Проверено: '+(sc||'ничего')+'. Включён ли принтер и в той же ли он сети? Можно ввести IP вручную.');return}
   let ip=r.found[0];if(r.found.length>1){ip=await ask('Найдено несколько принтеров','Выбери, к какому подключаться:',null,0,r.found);if(!ip)return}
   $('#sip').value=ip;saveIp()}
-renderRef();buildTwin();applyTheme();loadSettings();tick();setInterval(tick,3000);
+renderRef();buildTwin();applyTheme();loadSettings();tick();setInterval(tick,3000);setTimeout(loadFiles,1500);
 </script></body></html>
 """
 
