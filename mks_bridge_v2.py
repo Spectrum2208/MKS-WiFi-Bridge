@@ -148,7 +148,17 @@ def index_gcode(path):
         m = re.search(rb";TIME:(\d+)", data)
         if m:
             est = int(m.group(1))
-    return {"size": len(data), "offsets": offs, "zs": zs, "est": est}
+    # обдув: где в файле какая скорость задаётся. Прошивка её не сообщает, а позицию печати в файле мы знаем
+    fan = []
+    for m in re.finditer(rb"(?m)^(M106|M107)\b([^;\r\n]*)", data):
+        args = m.group(2).upper()
+        pi = re.search(rb"P\s*(\d+)", args)
+        if pi and int(pi.group(1)) != 0:   # другие вентиляторы (камеры, вспомогательный) — не обдув модели
+            continue
+        sv = re.search(rb"S\s*([\d.]+)", args)
+        pct = 0 if m.group(1) == b"M107" else min(100, round(float(sv.group(1)) / 2.55) if sv else 100)
+        fan.append([m.start(), pct])
+    return {"size": len(data), "offsets": offs, "zs": zs, "est": est, "fan": fan}
 
 
 def layer_info(file, progress, z, sd=None):
@@ -1226,6 +1236,11 @@ def make_handler(printer):
                 out["error"] = str(e)
             out["ip"] = printer.ip  # адрес мог поменяться при автопоиске прямо во время запроса
             out["fan"] = printer.fan
+            sd, idx = out.get("sd"), LAYERS.get(job_key(out.get("file")))
+            if is_printing(out) and sd and idx and idx.get("fan") is not None and abs(sd[1] - idx["size"]) <= 64:
+                i = bisect.bisect_right([o for o, _ in idx["fan"]], sd[0]) - 1   # последняя команда обдува до позиции печати
+                out["fan"] = idx["fan"][i][1] if i >= 0 else 0
+                out["fan_src"] = "gcode"
             if out.get("stale") and out.get("good_t"):
                 out["stale_age"] = round(time.time() - out["good_t"], 1)
             hist = [p for p in list(printer.history) if p[0] >= now - win]
