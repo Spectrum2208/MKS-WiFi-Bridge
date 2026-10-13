@@ -291,12 +291,24 @@ def _thin(p, step):
     return out
 
 
-def outline_save(name, layers, zs):
-    """Контур + сводка для панели: ширина модели по X на каждом слое (силуэт спереди) и «призрак» модели сверху."""
+def outline_spans(layers):
+    """На каждом слое — отрезки по X, занятые моделью (для силуэта спереди): у каждой детали свой,
+    иначе детали, стоящие рядом, сливаются в одну полосу."""
     ext = []
     for lay in layers:
-        xs = [v for p in lay for v in p[0::2]]
-        ext.append([min(xs), max(xs)] if xs else None)
+        merged = []
+        for a0, a1 in sorted((min(p[0::2]), max(p[0::2])) for p in lay):
+            if merged and a0 <= merged[-1][1] + 10:   # зазор меньше 1 мм — одна деталь
+                merged[-1][1] = max(merged[-1][1], a1)
+            else:
+                merged.append([a0, a1])
+        ext.append(merged)
+    return ext
+
+
+def outline_save(name, layers, zs):
+    """Контур + сводка для панели: ширина модели по X на каждом слое (силуэт спереди) и «призрак» модели сверху."""
+    ext = outline_spans(layers)
     pick = sorted({round(i * (len(layers) - 1) / 15) for i in range(16)}) if layers else []
     ghost = [_thin(p, 8) for i in pick for p in layers[i]]
     data = {"v": 1, "layers": layers, "zs": zs, "ext": ext, "ghost": ghost}
@@ -321,8 +333,11 @@ def outline_load(key):
     if key not in OUTL_CACHE:
         try:
             with open(os.path.join(OUTL_DIR, key + ".json"), encoding="utf-8") as f:
-                OUTL_CACHE.clear()
-                OUTL_CACHE[key] = json.load(f)
+                d = json.load(f)
+            if any(e and not isinstance(e[0], list) for e in d["ext"]):   # старый формат: одна полоса на слой
+                d["ext"] = outline_spans(d["layers"])
+            OUTL_CACHE.clear()
+            OUTL_CACHE[key] = d
         except (OSError, ValueError):
             return None
     return OUTL_CACHE[key]
@@ -458,6 +473,7 @@ class Printer:
         self.on_ip_change = lambda ip: None
         self.transferring = False
         self.homing = False      # идёт парковка (G28): соединение занято ожиданием её конца
+        self._autoreport = False # M155 уже включён для текущей печати
         self._home_sock = None
         self.fan = None          # последняя заданная скорость обдува, % (принтер её не сообщает)
         self.history = deque(maxlen=3000)
@@ -660,6 +676,9 @@ class Printer:
         m = last(r"SD printing byte (\d+)/(\d+)")
         if m and int(m[1]):
             st["sd"] = (int(m[0]), int(m[1]))
+            st["sd_live"] = True   # эту строку Marlin выдаёт только во время печати; на паузе — «Not SD printing»
+        if st["progress"] == 0 and (is_printing(cached) or is_printing(st)):
+            st["progress"] = None  # «M27 0» от экрана во время печати ничего не значит: ждём данных от Marlin
         m = last(r"M73 Progress: (\d+)%(?:; Time left: (\d+)m)?")
         if m and m[1]:
             st["left"] = int(m[1]) * 60
@@ -718,6 +737,21 @@ class Printer:
                 st["stale"] = True
                 if k == "pos":
                     st["pos_stale"] = True
+        # «SD printing byte» и M73 от Marlin приходят не в каждом опросе (ответы опаздывают и идут пачками):
+        # держим последние известные, иначе прогресс скачет к нулю — экран MKS на M27 отвечает «0»
+        if is_printing(st):
+            for k in ("sd", "left"):
+                if st.get(k) is None and prev.get(k) is not None and now - prev.get("good_t", 0) < 90:
+                    st[k] = prev[k]
+            if st.get("sd") and not st.get("progress"):
+                st["progress"] = st["sd"][0] * 100 // st["sd"][1]
+        # Экран MKS не знает о печати, запущенной не с него (M23/M24 по Wi-Fi), и сообщает «PAUSE».
+        # Правду говорит позиция в файле: растёт — значит печатает.
+        moved = st.get("sd_live") or (st.get("sd") and prev.get("sd") and st["sd"][0] > prev["sd"][0])
+        st["sd_moving_t"] = now if moved else prev.get("sd_moving_t", 0)
+        # На это опираются и блокировки опасных команд: экран может сказать и «IDLE», а печать идёт.
+        if st["state"] != "PRINTING" and now - st["sd_moving_t"] < 40:   # строка от Marlin бывает и раз в 20–30 с
+            st["state"] = "PRINTING"
         return st
 
     def mark_gap(self):
@@ -736,7 +770,10 @@ class Printer:
             else:
                 st["homing"] = st["stale"] = True
             return st
-        with self._status_lock:
+        # Панели (allow_stale) не ждут опроса, который уже идёт (во время печати он длится до 3 с): отдаём последнее известное
+        if not self._status_lock.acquire(blocking=not (allow_stale and self._cache[1])):
+            return self._cache[1]
+        try:
             if self._cache[1] and time.time() - self._cache[0] < max_age:
                 return self._cache[1]
             now = time.time()
@@ -766,6 +803,8 @@ class Printer:
             else:
                 self._cache = (time.time(), st)
             return st
+        finally:
+            self._status_lock.release()
 
     def delete(self, name, _checked=False, listed=None):
         if not _checked and is_printing(self.status()):
@@ -788,6 +827,18 @@ class Printer:
         self.cmd(["M23 " + name], wait=1.0)
         time.sleep(0.5)
         self.cmd(["M24"], wait=1.0)
+        self.enable_autoreport()
+
+    def enable_autoreport(self):
+        """Печать запущена по Wi-Fi (M23/M24): экран MKS перестаёт опрашивать температуру и на M105 отвечает
+        застывшими значениями. Просим плату саму присылать температуру раз в 2 с (M155) — это ничего не меняет
+        в печати, только частоту отчёта; экран при этом тоже оживает."""
+        self._autoreport = True
+        try:
+            self.cmd(["M155 S2"], wait=0.5)
+            log("включён автоотчёт температуры (M155 S2)")
+        except OSError as e:
+            log("M155 не отправлен: %s" % e)
 
     # --- HTTP-заливка ---
     def upload(self, path, name, progress=lambda sent, total: None):
@@ -1001,8 +1052,7 @@ SAFE_WHILE_PRINTING = {"M105", "M114", "M115", "M27", "M25", "M24", "M26", "M220
 LOCAL_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]", "::1")
 FAILS = {}
-ACTIVITY = {"t": 0.0}
-FILES_SEEN = []   # последний полученный список файлов: во время печати принтер его не отдаёт   # когда последний раз открывали панель
+ACTIVITY = {"t": 0.0}   # когда последний раз открывали панель
 MAX_BODY = 600 * 1024 * 1024
 
 
@@ -1101,10 +1151,13 @@ def make_handler(printer):
                 if self._guard_printer():
                     try:
                         lst = printer.files()
+                        busy = is_printing(printer._cache[1] or {})
                         if lst:
-                            FILES_SEEN[:] = lst
-                        elif FILES_SEEN and is_printing(printer._cache[1] or {}):
-                            self._json(200, {"files": FILES_SEEN, "cached": True})
+                            if lst != CFG.get("files_seen"):
+                                CFG["files_seen"] = lst   # в настройках: перезапуск моста посреди печати не теряет список
+                                cfg_save()
+                        elif busy:
+                            self._json(200, {"files": CFG.get("files_seen") or [], "cached": True})
                             return
                         self._json(200, {"files": lst})
                     except Exception as e:
@@ -1578,8 +1631,12 @@ def sampler(printer):
             if CFG.get("background_poll", True) and printer.ip and not printer.transferring:
                 active = time.time() - ACTIVITY["t"] < 45
                 try:
-                    printer.status_cached(max_age=0, quiet=True, allow_stale=True)
+                    st = printer.status_cached(max_age=0, quiet=True, allow_stale=True)
                     fails, delay = 0, (4 if active else 10)
+                    if is_printing(st) and not printer._autoreport and not printer.homing:
+                        printer.enable_autoreport()   # печать идёт (мост перезапущен посреди неё или её запустили не мы)
+                    elif not is_printing(st):
+                        printer._autoreport = False
                 except Exception:
                     fails += 1
                     printer.mark_gap()
@@ -1710,7 +1767,12 @@ header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}h
  .xl .sv{width:min(calc(100cqw - 172px),calc((100cqh - 40px)*.634))}
  .xin .xl{flex:none;width:auto}
  #files,#reflist{flex:1;min-height:40px;max-height:none}#log{flex:1;height:auto;min-height:40px}.cv{flex:1;height:auto;min-height:100px}}
-.sv.printing #tHead,.sv.printing #fHead{opacity:.45;transition:opacity .4s}
+.sv.printing #fHead{opacity:.45;transition:opacity .4s}
+.sv.printing #gDrive{transform-box:view-box;transform-origin:62px 72px;animation:spin 2.4s linear infinite}
+.sv.printing #gIdler{transform-box:view-box;transform-origin:118px 72px;animation:spin 2.86s linear infinite reverse}
+.sv.printing #eFil{animation:feed 1.2s linear infinite}@keyframes feed{to{stroke-dashoffset:-15}}
+/* во время печати корпус каретки сверху закрывал бы модель: остаётся только точка сопла, балка бледнеет */
+.sv.printing #tHead rect{display:none}.sv.printing #tGant{opacity:.3}
 .card h2 .dim{text-transform:none;letter-spacing:0;font-weight:400;opacity:.75}.card h2 .dim::before{content:"·";margin-right:6px}
 .badge{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bd)}.badge.on{background:var(--acc);color:#fff}.badge.off{background:var(--bad);color:#fff}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px}.kv span:nth-child(odd){color:var(--mut)}
@@ -2031,7 +2093,7 @@ function sendFiles(fl){[...fl].forEach(f=>{
 // ---- файлы
 async function loadFiles(){
   const box=$('#files');box.textContent='Загрузка…';const r=await api('/api/list');if(r.error){box.textContent=r.error;return}
-  box.textContent='';if(!r.files.length){box.textContent='Файлов нет';return}
+  box.textContent='';if(!r.files.length){box.textContent=r.cached?'Во время печати принтер не отдаёт список файлов. Он появится после печати.':'Файлов нет';return}
   if(r.cached){const n=document.createElement('div');n.className='mut sm';n.textContent='Во время печати принтер не отдаёт список: показан последний известный.';box.appendChild(n)}
   r.files.forEach(n=>{const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.value=n;l.appendChild(c);l.appendChild(document.createTextNode(n));box.appendChild(l)})}
 const sel=()=>[...document.querySelectorAll('#files input:checked')].map(c=>c.value);
@@ -2153,8 +2215,7 @@ function buildTwin(){
    '<rect x="'+(rx1-9)+'" y="10" width="18" height="7" rx="2" '+rod+'/><rect x="'+(rx2-9)+'" y="10" width="18" height="7" rx="2" '+rod+'/>'+
    '<text id="fBedT" x="'+(ox+bw/2)+'" y="8" text-anchor="middle" font-size="7.5" '+LBL+'>—</text>'+
    '<g id="fModel" transform="translate('+ox+',0) scale('+sc+','+(-sc)+')" style="display:none;pointer-events:none">'+
-    '<path id="fSil" style="fill:var(--fg);fill-opacity:.12"/>'+
-    '<path id="fSilDone" style="fill:var(--fg);fill-opacity:.3"/></g>'+
+    '<path id="fSilDone" style="fill:var(--fg);fill-opacity:.5"/></g>'+
    '<rect x="'+ox+'" y="-4" width="'+bw+'" height="24" '+HIT+'/><rect id="fRingB" x="'+(ox-3)+'" y="-4" width="'+(bw+6)+'" height="24" rx="4" '+RING+'/></g>'+
    '<g id="fGantry"><line x1="'+(ox-8)+'" y1="44" x2="'+(ox+bw+8)+'" y2="44" style="stroke:var(--mut)" stroke-width="4" stroke-linecap="round"/>'+
    '<g id="fHead" style="cursor:pointer"><rect x="-19" y="14" width="38" height="22" rx="3" style="fill:var(--card);stroke:var(--fg)" stroke-width="1.5"/><circle cx="0" cy="25" r="6" fill="none" style="stroke:var(--mut)"/>'+
@@ -2230,8 +2291,8 @@ function fitViews(){
     let w=1e9;[['#cTop',232],['#cFro',FR?FR.vbH:323]].forEach(([id,vh])=>{const e=document.querySelector(id+' .vwrap');if(!e)return;const r=e.getBoundingClientRect();w=Math.min(w,r.width-148,(r.height-4)*300/vh)});
     if(w>40&&w<1e9)root.setProperty('--vw',Math.floor(w)+'px')}catch(_){}}
 window.addEventListener("resize",fitViews);setTimeout(fitViews,400);
-function frontDy(z){const g=GEOM;return g.z_bed?0:(FR.floor-4-FR.tip)-(Math.min(z,g.bz)/g.bz)*FR.T}
-function bedYAt(z){const g=GEOM;return g.z_bed?FR.tip+4+(Math.min(z,g.bz)/g.bz)*FR.T:FR.floor}
+function frontDy(z){const g=GEOM;return g.z_bed?0:(FR.floor-FR.tip)-(Math.min(z,g.bz)/g.bz)*FR.T}
+function bedYAt(z){const g=GEOM;return g.z_bed?FR.tip+(Math.min(z,g.bz)/g.bz)*FR.T:FR.floor}
 function updateTwin(s){
   if(!TW||!FR)return;LASTS=s||{};const g=GEOM,p=s.pos,nt=s.nozzle,bt=s.bed,cl=(v,m)=>Math.max(0,Math.min(m,v));
   const fresh=!!p&&!s.stale&&!s.pos_stale&&s.online!==false;
@@ -2258,14 +2319,16 @@ const polyD=ps=>ps.map(p=>'M'+p[0]+' '+p[1]+'L'+p.slice(2).join(' ')).join('');
 // силуэт спереди: каждый слой — полоска шириной с модель по X на своей высоте. Полосками, а не одним контуром:
 // при последовательной печати объектов высота сбрасывается в ноль, и следующий объект растёт заново
 function silD(upto){const s=OL.sum,d=[];
-  for(let i=0;i<Math.min(upto,s.ext.length);i++){const e=s.ext[i],z1=s.zs[i];if(!e||z1==null)continue;
+  for(let i=0;i<Math.min(upto,s.ext.length);i++){const e=s.ext[i],z1=s.zs[i];if(!e||!e.length||z1==null)continue;
     const p=s.zs[i-1],z0=p!=null&&p<z1&&z1-p<2?p:Math.max(0,z1-.2);
-    d.push('M'+e[0]/10+' '+z0+'H'+e[1]/10+'V'+z1+'H'+e[0]/10+'Z')}
+    (typeof e[0]==='number'?[e]:e).forEach(([a,b])=>d.push('M'+a/10+' '+z0+'H'+b/10+'V'+z1+'H'+a/10+'Z'))}
   return d.join('')}
 function drawModel(){const on=OL.show&&!!OL.sum,t=$('#tModel'),f=$('#fModel');if(!t||!f)return;t.style.display=f.style.display=on?'':'none';if(!on)return;
   $('#tGhost').setAttribute('d',OL.ghost);$('#tLay').setAttribute('d',OL.cur);$('#tLayH').setAttribute('d',OL.cur);
-  $('#fSil').setAttribute('d',silD(1e9));$('#fSilDone').setAttribute('d',silD(OL.layer))}
+  $('#fSilDone').setAttribute('d',silD(OL.layer))}   // спереди только напечатанное: выше сопла модели ещё нет, там каретка
 function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').classList.toggle('printing',pr);$('#svgFront').classList.toggle('printing',pr);
+  // позицию E во время печати Marlin не сообщает (слайсер подаёт пруток относительно): крутим шестерни, пока идёт печать
+  const ex=$('#svgExt'),run=/PRINTING/.test(s.state||'');if(ex.classList.contains('printing')!==run){ex.classList.toggle('printing',run);renderE()}
   OL.show=pr&&!!s.outline;
   if(OL.show&&OL.id!==s.outline){const id=s.outline;OL={id,sum:null,layer:0,cur:'',ghost:'',show:true};
     api('/api/outline?file='+encodeURIComponent(id)).then(r=>{if(OL.id!==id||r.error)return;OL.sum=r;OL.ghost=polyD(r.ghost);drawModel()})}
@@ -2276,7 +2339,7 @@ function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').cl
 function setE(v){if(tgtE==null||Math.abs(v-visE)>60)visE=v;tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
 function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),25*dt);renderE();
   eRaf=Math.abs(tgtE-visE)>.005?requestAnimationFrame(animE):0}
-function renderE(){const a=visE*20;$('#gDrive').setAttribute('transform','rotate('+a+' 62 72)');$('#gIdler').setAttribute('transform','rotate('+(-a*25/21)+' 118 72)');
+function renderE(){if($('#svgExt').classList.contains('printing')){$('#eE').textContent='E по G-code';return}const a=visE*20;$('#gDrive').setAttribute('transform','rotate('+a+' 62 72)');$('#gIdler').setAttribute('transform','rotate('+(-a*25/21)+' 118 72)');
   $('#eFil').setAttribute('stroke-dashoffset',-(a*Math.PI/180*24));$('#eE').textContent='E '+visE.toFixed(1)+' мм'}
 // ---- управление кликом: клик по головке или столу включает режим, следующий клик по месту назначения запускает движение
 function syncArm(){if(!TW)return;$('#tRing').style.display=ARM==='xy'?'':'none';$('#fRingH').style.display=ARM==='x'?'':'none';$('#fRingB').style.display=ARM==='z'?'':'none';
@@ -2286,7 +2349,7 @@ function syncArm(){if(!TW)return;$('#tRing').style.display=ARM==='xy'?'':'none';
   if(fz){['x','y','width','height'].forEach((k,i)=>fe.setAttribute(k,fz[i]));}}
 // где можно кликнуть на виде спереди: по X — полоса хода головки, по Z — ход стола (или сопла, если по Z ездит головка)
 function frontZone(){if(ARM==='x'){const y=(CUR&&!GEOM.z_bed?frontDy(CUR.z):0)+10;return[FR.l-SNAP,y,FR.bw+2*SNAP,88]}
-  if(ARM==='z')return[FR.l-6,(GEOM.z_bed?FR.tip+4:FR.floor-4-FR.T)-SNAP,FR.bw+12,FR.T+2*SNAP];return null}
+  if(ARM==='z')return[FR.l-6,(GEOM.z_bed?FR.tip:FR.floor-FR.T)-SNAP,FR.bw+12,FR.T+2*SNAP];return null}
 // пунктир обводок: длина узора 5+3 должна укладываться в периметр целое число раз, иначе в углу, где узор начинается, — обрубок
 function fixRing(e){const w=+e.getAttribute('width'),h=+e.getAttribute('height'),r=+e.getAttribute('rx')||0,P=2*(w+h)-(8-2*Math.PI)*r;
   e.setAttribute('pathLength',Math.max(8,Math.round(P/8)*8))}
@@ -2301,8 +2364,8 @@ function topTarget(e){const q=svgQ($('#svgTop'),e),g=GEOM,cl=(v,m)=>Math.max(0,M
 function frontTarget(e){const q=svgQ($('#svgFront'),e),g=GEOM;
   const zn=frontZone(),ok=!!zn&&q.x>=zn[0]&&q.x<=zn[0]+zn[2]&&q.y>=zn[1]&&q.y<=zn[1]+zn[3];   // кликать можно ровно там, где подсвечено
   if(ARM==='x'){const val=Math.max(0,Math.min(g.bx,(q.x-FR.l)/FR.bw*g.bx));return{ok,val,q:{x:FR.l+val/g.bx*FR.bw,y:q.y}}}
-  const k=g.z_bed?(q.y-(FR.tip+4))/FR.T:(FR.floor-4-q.y)/FR.T,val=Math.max(MINZ,Math.min(g.bz,k*g.bz)),kv=val/g.bz*FR.T;
-  return{ok,val,q:{x:q.x,y:g.z_bed?FR.tip+4+kv:FR.floor-4-kv}}}
+  const k=g.z_bed?(q.y-FR.tip)/FR.T:(FR.floor-q.y)/FR.T,val=Math.max(MINZ,Math.min(g.bz,k*g.bz)),kv=val/g.bz*FR.T;
+  return{ok,val,q:{x:q.x,y:g.z_bed?FR.tip+kv:FR.floor-kv}}}
 async function goTo(p){ARM=null;syncArm();log('> переезд '+Object.keys(p).map(k=>k.toUpperCase()+p[k].toFixed(1)).join(' '));
   const plan=holdPlan(p.x,p.y,p.z,feedXY(50),Math.min(10,LIM.z||10));
   const r=await guardedMove(plan,()=>api('/api/goto',p));if(r.error)log(r.error+(r.reply?' · '+r.reply.split('\n')[0]:''),'#ef5350');else log(r.reply||'(отправлено)');tick()}
