@@ -1,0 +1,95 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>MKS WiFi Bridge</title>
+<link rel="stylesheet" href="/static/panel.css">
+</head><body>
+<header><h1>MKS WiFi Bridge</h1><span id="state" class="badge">…</span><span class="mut">принтер: <span id="ip">—</span></span><span class="sp"></span>
+<button class="p sm" id="homeAll" title="Домой по всем осям (G28)" onclick="cmd('G28')" style="display:inline-flex;align-items:center;gap:6px"><span data-i="home" style="display:inline-grid;line-height:0"></span>Домой все оси</button>
+<button id="thm" onclick="cycleTheme()" title="Тема">◐</button><button id="gear" onclick="openSet()" title="Настройки"></button></header>
+<div class="grid">
+<div class="col" id="c1">
+<div class="card" id="cTop"><h2>Вид сверху <span class="dim" id="dimTop"></span><span class="sp"></span><span class="hint">клик по головке, затем по точке на столе</span></h2>
+ <div class="vwrap"><div class="veil" hidden><b></b><span></span><button class="bt rc" onclick="reconnect()">Переподключиться</button></div><div class="vrow"><div class="vcol"><svg id="svgTop" class="sv" viewBox="0 0 300 232" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="side"><div class="fld"><span class="mut">Позиция</span><div class="rd" id="tCoord">—</div></div>
+    <div class="pad"><span></span><button class="kb" data-i="chev" data-r="0" title="Y+ (головка назад)" onclick="mv('Y',1)"></button><span></span>
+     <button class="kb" data-i="chev" data-r="270" title="X−" onclick="mv('X',-1)"></button><button class="kb home" data-i="home" title="Домой по X и Y (G28 X Y)" onclick="cmd('G28 X Y')"></button><button class="kb" data-i="chev" data-r="90" title="X+" onclick="mv('X',1)"></button>
+     <span></span><button class="kb" data-i="chev" data-r="180" title="Y− (головка вперёд)" onclick="mv('Y',-1)"></button><span></span></div>
+    <div class="fld"><span class="mut">Шаг, мм</span><div class="steps" id="steps"></div></div>
+    <button class="bt blk" title="Отключить моторы (M84): оси можно двигать руками" onclick="cmd('M84')"><span data-i="motor" style="color:var(--mut)"></span>Моторы</button></div></div></div></div>
+<div class="card" id="cFro"><h2>Вид спереди <span class="dim" id="dimFront"></span><span class="sp"></span><span class="hint">клик по головке — X, по столу — Z</span></h2>
+ <div class="vwrap"><div class="veil" hidden><b></b><span></span><button class="bt rc" onclick="reconnect()">Переподключиться</button></div><div class="vrow"><div class="vcol"><svg id="svgFront" class="sv" viewBox="0 0 300 353" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="side"><div class="fld"><span class="mut">Высота</span><div class="rd" id="fZ">Z —</div></div>
+    <div class="fld"><span class="mut" id="zcap">Стол</span><div class="zrow"><button class="kb" id="zUp" data-i="chev" data-r="0" onclick="zMove(true)"></button><button class="kb" id="zDn" data-i="chev" data-r="180" onclick="zMove(false)"></button></div><span class="mut sm">шаг <b id="zstep">10</b> мм</span></div>
+    <button class="bt blk" title="Домой по Z (G28 Z)" onclick="cmd('G28 Z')"><span data-i="home" style="color:var(--acc)"></span>Домой Z</button></div></div></div></div>
+</div>
+<div class="col" id="c2">
+<div class="card" id="cEx"><h2>Экструдер</h2>
+ <div class="xw"><div class="veil" hidden><b></b><span></span><button class="bt rc" onclick="reconnect()">Переподключиться</button></div><div class="xin">
+  <div class="xl"><svg id="svgExt" class="sv" viewBox="0 0 136 262" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
+  <div class="side xs"><div class="fld"><span class="mut">Положение E</span><div class="rd" id="eE">E —</div></div>
+   <div class="fld"><span class="mut">Подача, мм</span><div class="steps" id="esteps"></div>
+    <button class="bt blk" title="Втянуть пруток (E−)" onclick="ex(-1)"><span data-i="chev" data-r="0" style="color:#f59e0b"></span>Втянуть</button>
+    <button class="bt blk" title="Протолкнуть пруток (E+)" onclick="ex(1)"><span data-i="chev" data-r="180" style="color:#16a34a"></span>Протолкнуть</button></div>
+   <div class="fld"><span class="mut sfan">Обдув<b id="fanv">—</b></span><div class="fanrow" title="Принтер не сообщает скорость обдува: показывается последнее значение, заданное отсюда"><svg class="fanico" viewBox="-17 -17 34 34" aria-hidden="true"><circle r="15.5" style="fill:var(--card);stroke:var(--mut)" stroke-width="2"/><g id="eBlades" class="blades"><path d="M0 0 L-3 -13 A13 13 0 0 1 8 -10Z M0 0 L13 -3 A13 13 0 0 1 10 8Z M0 0 L3 13 A13 13 0 0 1 -8 10Z M0 0 L-13 3 A13 13 0 0 1 -10 -8Z" style="fill:var(--mut)"/></g></svg><input type="range" class="rng" id="fanr" min="0" max="100" step="5" value="0" oninput="fanLabel()" onchange="setFan()"></div></div></div></div></div></div>
+<div class="lowb">
+<div class="card" id="cCtl"><h2>Печать</h2>
+ <div class="stats"><div class="big" id="progtxt">—</div><div class="sb"><div class="bar"><i id="prog"></i></div><div class="mut" id="file"></div></div></div>
+ <div class="kv2"><span>Слой <b id="layer">—</b></span><span>Z <b id="zv">—</b></span><span>Прошло <b id="elapsed">—</b></span><span>Осталось <b id="eta">—</b></span></div>
+ <div class="mut" id="err" style="color:var(--bad)"></div>
+ <div class="btnrow"><button class="bt blk" title="Пауза (M25)" onclick="cmd('M25')"><span data-i="pause" style="color:#f59e0b"></span>Пауза</button><button class="bt blk" title="Продолжить (M24)" onclick="cmd('M24')"><span data-i="play" style="color:#16a34a"></span>Пуск</button>
+  <button class="bt blk" title="Стоп (M26)" onclick="cmd('M26')"><span data-i="stop" style="color:#dc2626"></span>Стоп</button></div></div>
+<div class="card" id="cFl"><h2>Файлы</h2>
+ <div class="drop" id="drop">Перетащи .gcode сюда или нажми, чтобы выбрать<input id="pick" type="file" accept=".gcode,.gco,.g" multiple hidden></div>
+ <label class="row mut"><input type="checkbox" id="startAfter"> сразу запускать печать после загрузки</label><div id="jobs"></div>
+ <div class="row"><button class="bt" onclick="loadFiles()" title="Обновить список файлов на принтере"><span data-i="refresh"></span>Обновить</button><button class="bt d" onclick="delSel()" title="Удалить отмеченные файлы с принтера"><span data-i="trash"></span>Удалить</button><button class="bt p" onclick="printSel()" title="Запустить печать выбранного файла"><span data-i="play"></span>Печатать</button></div>
+ <div id="files" class="mut">Нажми «Обновить», чтобы увидеть файлы на принтере</div></div>
+</div>
+</div>
+<div class="col" id="c3">
+<div class="card" id="cTm"><h2>Температуры <span class="sp"></span><button class="s ib" onclick="coolAll()" title="Выключить нагрев сопла и стола (M104 S0, M140 S0)"><span data-i="snow"></span>Остудить всё</button><span id="ranges" class="seg"></span></h2>
+ <div class="tiles t2">
+  <div class="tile" style="--c:#ef6c00"><div class="tv"><span class="tl">Сопло</span><b id="nozzle">—</b></div>
+   <div class="tc"><div class="tin"><input type="number" id="tn" placeholder="цель" min="0" max="300" onkeydown="if(event.key==='Enter')setT('M104','tn')"><i>°C</i></div><button class="kb t go" data-i="check" title="Задать температуру сопла" onclick="setT('M104','tn')"></button><button class="kb t cool" data-i="snow" title="Остудить сопло (M104 S0)" onclick="heatOff('M104')"></button></div></div>
+  <div class="tile" style="--c:#1e88e5"><div class="tv"><span class="tl">Стол</span><b id="bed">—</b></div>
+   <div class="tc"><div class="tin"><input type="number" id="tb" placeholder="цель" min="0" max="120" onkeydown="if(event.key==='Enter')setT('M140','tb')"><i>°C</i></div><button class="kb t go" data-i="check" title="Задать температуру стола" onclick="setT('M140','tb')"></button><button class="kb t cool" data-i="snow" title="Остудить стол (M140 S0)" onclick="heatOff('M140')"></button></div></div></div>
+ <div class="cv"><canvas id="chart"></canvas></div>
+ <div class="mut sm">Сплошная — факт, пунктир — цель, разрыв — нет данных. Наведи на график, чтобы увидеть значения.</div></div>
+<div class="card" id="cCs"><h2><span class="tbs"><button class="tb on" data-t="log" onclick="tab('log')">G-code консоль</button><button class="tb" data-t="ref" onclick="tab('ref')">Справочник команд</button></span><span class="sp"></span><button class="s" id="clr" onclick="$('#log').textContent=''">Очистить</button></h2>
+ <div class="pane" id="pLog"><div id="log"></div></div>
+ <div class="pane" id="pRef" hidden><input type="text" id="refq" placeholder="поиск: температура, M115, home…" style="width:100%" oninput="renderRef()">
+  <div class="mut" style="margin:4px 0">Нажатие вставляет команду в строку ввода ниже: допиши параметры и нажми Enter. Красные при отправке просят подтверждение.</div><div id="reflist"></div></div>
+ <div class="row"><input type="text" id="cin" placeholder="команда, ↑↓ — история" style="flex:1" onkeydown="conKey(event)"><button class="p" onclick="sendCon()">Отправить</button></div>
+ <label class="mut"><input type="checkbox" id="force"> Разрешить опасные команды во время печати</label></div>
+</div>
+</div>
+<div id="ov" class="ov" onclick="if(event.target===this)closeSet()"><div class="card sbox" role="dialog" aria-modal="true" aria-labelledby="setT">
+ <div class="shd"><h3 id="setT">Настройки</h3><span class="mut" id="ver"></span><span class="sp"></span><button class="kb t" onclick="closeSet()" title="Закрыть (Esc)" aria-label="Закрыть">✕</button></div>
+ <div class="rg">Подключение</div>
+ <div class="srow"><div class="sl"><b>Адрес принтера</b><span>IP модуля MKS-WIFI в домашней сети</span></div>
+  <div class="sc"><input type="text" id="sip" class="sin" spellcheck="false" onchange="saveIp()"><button class="sm" onclick="findPrinter()">Найти</button></div></div>
+ <div class="srow"><div class="sl"><b>Опрос в фоне</b><span>График температур не прерывается, даже когда панель закрыта</span></div>
+  <label class="sw"><input type="checkbox" id="sbg" onchange="saveOpt()"><i></i></label></div>
+ <div class="rg">Файлы</div>
+ <div class="srow"><div class="sl"><b>Заменять файл с тем же именем</b><span>Иначе к имени добавится _1, _2…</span></div>
+  <label class="sw"><input type="checkbox" id="sow" onchange="saveOpt()"><i></i></label></div>
+ <div class="srow"><div class="sl"><b>Длина имени на принтере</b><span>Длинные имена укорачиваются с середины, 12–60 символов</span></div>
+  <div class="tin"><input type="number" id="smax" min="12" max="60" onchange="saveOpt()"><i>симв.</i></div></div>
+ <div class="rg">Принтер</div>
+ <div class="srow"><div class="sl"><b>Размер области печати</b><span>Границы для перемещений и модели в панели</span></div>
+  <div class="sc"><div class="tin sxyz"><i>X</i><input type="number" id="gbx" min="50" max="1000" onchange="saveOpt()"></div><div class="tin sxyz"><i>Y</i><input type="number" id="gby" min="50" max="1000" onchange="saveOpt()"></div><div class="tin sxyz"><i>Z</i><input type="number" id="gbz" min="50" max="1000" onchange="saveOpt()"><i>мм</i></div></div></div>
+ <div class="srow"><div class="sl"><b>По Z движется стол</b><span>Как у Ghost: +Z опускает стол. Выключи, если по Z ездит головка</span></div>
+  <label class="sw"><input type="checkbox" id="gzb" onchange="saveOpt()"><i></i></label></div>
+ <div class="srow"><div class="sl"><b>Скорости из прошивки</b><span id="lims">Не считаны: анимация в панели едет с примерной скоростью</span></div>
+  <button class="sm" onclick="loadLimits()" title="Прочитать M203/M204 командой M503">Считать</button></div>
+ <div class="rg">Доступ и запуск</div>
+ <div class="srow"><div class="sl"><b>Доступ с телефона</b><span>Панель откроется с других устройств в сети по PIN-коду</span></div>
+  <label class="sw"><input type="checkbox" id="srem" onchange="saveRemote()"><i></i></label></div>
+ <div class="sremote" id="remote" hidden></div>
+ <div class="srow" id="autorow"><div class="sl"><b>Запускать вместе с Windows</b><span>Мост стартует в фоне при входе в систему</span></div>
+  <label class="sw"><input type="checkbox" id="sauto" onchange="saveAuto()"><i></i></label></div>
+ <div class="sft"><button class="bt d" onclick="quitApp()"><span data-i="power"></span>Выход из программы</button></div></div></div>
+<div id="toast" class="toast"></div>
+<div id="dlg" class="ov"><div class="card dbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgT" aria-describedby="dlgX">
+ <h3 id="dlgT"></h3><p id="dlgX"></p><div id="dlgC" class="dch"></div><div class="dbtn"><button id="dlgN">Отмена</button><button id="dlgY" class="p">OK</button></div></div></div>
+<script src="/static/panel.js"></script>
+</body></html>
