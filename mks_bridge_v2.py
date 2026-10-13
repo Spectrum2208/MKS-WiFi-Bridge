@@ -1764,7 +1764,7 @@ PANEL_HTML = r"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#14171a;--card:#1d2125;--fg:#e8eaed;--mut:#9aa3ad;--bd:#2b3036;--in:#14171a}}
 :root[data-theme=dark]{color-scheme:dark;--bg:#14171a;--card:#1d2125;--fg:#e8eaed;--mut:#9aa3ad;--bd:#2b3036;--in:#14171a}
 :root[data-theme=light]{color-scheme:light}
-*{box-sizing:border-box}input[type=checkbox]{accent-color:var(--acc)}
+*{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--mut) 55%,transparent) transparent}input[type=checkbox]{accent-color:var(--acc)}
 body{margin:0 auto;max-width:1800px;padding:10px 12px;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,"Segoe UI",sans-serif}
 header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}header h1{font-size:18px;margin:0}header .sp{flex:1}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:12px}
@@ -1779,15 +1779,16 @@ header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}h
  .vwrap{flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
  .vrow{flex-wrap:nowrap}.vrow .sv{width:var(--vw,100%);max-width:none}
  .xw{flex:1;min-height:0;container-type:size;display:flex;align-items:center;justify-content:center}
- .xl .sv{width:min(calc(100cqw - 172px),calc((100cqh - 40px)*.634))}
+ .xl .sv{width:min(calc(100cqw - 172px),calc((100cqh + 30px)*.519));margin-top:-30px}#cEx .veil{top:-32px}
  .xin .xl{flex:none;width:auto}
  #files,#reflist{flex:1;min-height:40px;max-height:none}#log{flex:1;height:auto;min-height:40px}.cv{flex:1;height:auto;min-height:100px}}
 .sv.printing #fHead{opacity:.45;transition:opacity .4s}
-.sv.printing #gDrive{transform-box:view-box;transform-origin:62px 72px;animation:spin 2.4s linear infinite}
-.sv.printing #gIdler{transform-box:view-box;transform-origin:118px 72px;animation:spin 2.86s linear infinite reverse}
-.sv.printing #eFil{animation:feed 1.2s linear infinite}@keyframes feed{to{stroke-dashoffset:-15}}
+/* во время печати шестерни BMG крутятся с честным передаточным: пруток 3 мм/с → колесо 7.6 с/об, мотор в 50/17 раз быстрее */
+.sv.printing #eBig,.sv.printing #eHob{animation:spin 7.64s linear infinite}.sv.printing #eIdl{animation:spin 7.64s linear infinite reverse}
+.sv.printing #ePin{animation:spin 2.6s linear infinite reverse}
+.sv.printing #eFil{animation:feed 1.4s linear infinite}@keyframes feed{to{stroke-dashoffset:-8.4}}
 /* во время печати корпус каретки сверху закрывал бы модель: остаётся только точка сопла, балка бледнеет */
-.sv.printing #tHead rect{display:none}.sv.printing #tGant{opacity:.3}
+.sv.printing #tHead .hb{display:none}.sv.printing #tGant{opacity:.3}
 .card h2 .dim{text-transform:none;letter-spacing:0;font-weight:400;opacity:.75}.card h2 .dim::before{content:"·";margin-right:6px}
 .badge{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--bd)}.badge.on{background:var(--acc);color:#fff}.badge.off{background:var(--bad);color:#fff}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px}.kv span:nth-child(odd){color:var(--mut)}
@@ -1850,7 +1851,7 @@ input[type=text],input[type=number]{font:inherit;padding:6px 8px;border-radius:8
 .pane{flex:1;min-height:0;display:flex;flex-direction:column}.pane[hidden]{display:none}
 .xl{display:flex;flex-direction:column;gap:6px;min-width:0;width:260px;max-width:100%}
 .xin{display:flex;gap:12px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
-.fanrow{display:flex;gap:8px;align-items:center}.fanrow b{min-width:38px;text-align:right;font-size:13px}
+.fanrow{display:flex;gap:8px;align-items:center}.fanico{width:24px;height:24px;flex:none}.sfan{display:flex;justify-content:space-between}.sfan b{color:var(--fg);font-size:12px}.fanrow b{min-width:38px;text-align:right;font-size:13px}
 .rng{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:22px;background:transparent;margin:0;cursor:pointer;--v:0%}
 .rng::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--acc) var(--v),var(--bd) var(--v))}
 .rng::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--card);border:2px solid var(--acc);margin-top:-5px;box-shadow:0 1px 3px #0005}
@@ -1914,12 +1915,13 @@ button.s.ib{display:inline-flex;align-items:center;gap:5px;text-transform:none;l
 <div class="col" id="c2">
 <div class="card" id="cEx"><h2>Экструдер</h2>
  <div class="xw"><div class="veil" hidden><b></b><span></span><button class="bt rc" onclick="reconnect()">Переподключиться</button></div><div class="xin">
-  <div class="xl"><svg id="svgExt" class="sv" viewBox="0 0 180 284" preserveAspectRatio="xMidYMid meet"></svg>
-   <div class="fanrow" title="Принтер не сообщает скорость обдува: показывается последнее значение, заданное отсюда"><span class="mut">Обдув</span><input type="range" class="rng" id="fanr" min="0" max="100" step="5" value="0" oninput="fanLabel()" onchange="setFan()"><b id="fanv">—</b></div></div>
+  <div class="xl"><svg id="svgExt" class="sv" viewBox="0 0 136 262" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
   <div class="side xs"><div class="fld"><span class="mut">Положение E</span><div class="rd" id="eE">E —</div></div>
    <div class="fld"><span class="mut">Подача, мм</span><div class="steps" id="esteps"></div>
     <button class="bt blk" title="Втянуть пруток (E−)" onclick="ex(-1)"><span data-i="chev" data-r="0" style="color:#f59e0b"></span>Втянуть</button>
-    <button class="bt blk" title="Протолкнуть пруток (E+)" onclick="ex(1)"><span data-i="chev" data-r="180" style="color:#16a34a"></span>Протолкнуть</button></div></div></div></div></div>
+    <button class="bt blk" title="Протолкнуть пруток (E+)" onclick="ex(1)"><span data-i="chev" data-r="180" style="color:#16a34a"></span>Протолкнуть</button></div>
+   <div class="fld"><span class="mut sfan">Обдув<b id="fanv">—</b></span><div class="fanrow" title="Принтер не сообщает скорость обдува: показывается последнее значение, заданное отсюда"><svg class="fanico" viewBox="-17 -17 34 34" aria-hidden="true"><circle r="15.5" style="fill:var(--card);stroke:var(--mut)" stroke-width="2"/><g id="eBlades" class="blades"><path d="M0 0 L-3 -13 A13 13 0 0 1 8 -10Z M0 0 L13 -3 A13 13 0 0 1 10 8Z M0 0 L3 13 A13 13 0 0 1 -8 10Z M0 0 L-13 3 A13 13 0 0 1 -10 -8Z" style="fill:var(--mut)"/></g></svg><input type="range" class="rng" id="fanr" min="0" max="100" step="5" value="0" oninput="fanLabel()" onchange="setFan()"></div></div></div></div></div></div>
 <div class="lowb">
 <div class="card" id="cCtl"><h2>Печать</h2>
  <div class="stats"><div class="big" id="progtxt">—</div><div class="sb"><div class="bar"><i id="prog"></i></div><div class="mut" id="file"></div></div></div>
@@ -2047,17 +2049,19 @@ function setRange(r){RANGE=r;lsSet('mks_range',r);document.querySelectorAll('#ra
 document.querySelectorAll('#ranges button').forEach(b=>b.classList.toggle('on',+b.dataset.r===RANGE));
 let hoverX=null;
 function drawChart(){
+  // холст ровно в физических пикселях экрана, иначе браузер растягивает картинку и линии мылятся
   const c=$('#chart'),dpr=window.devicePixelRatio||1,r=c.getBoundingClientRect(),W=Math.max(260,r.width),H=Math.max(110,r.height);
-  c.width=W*dpr;c.height=H*dpr;const x=c.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+  c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);const x=c.getContext('2d');x.setTransform(c.width/W,0,0,c.height/H,0,0);x.clearRect(0,0,W,H);
+  const px1=v=>(Math.round(v*dpr)+.5)/dpr;   // тонкая линия точно по пикселю
   const cs=getComputedStyle(document.documentElement),bd=cs.getPropertyValue('--bd').trim(),mu=cs.getPropertyValue('--mut').trim(),fg=cs.getPropertyValue('--fg').trim(),cd=cs.getPropertyValue('--card').trim();
   const L=34,R=108,T=8,B=20,pw=W-L-R,ph=H-T-B,h=HIST,span=RANGE,now=NOW;
   const vals=[];h.forEach(p=>[1,2,3,4].forEach(k=>{if(p[k])vals.push(p[k])}));
   const mxv=Math.max(50,...vals),step=[10,20,25,50,100].find(s=>mxv/s<=5)||100,ymax=Math.ceil((mxv+1)/step)*step;
   const X=t=>L+pw-(now-t)/span*pw,Y=v=>T+ph-v/ymax*ph,SER=[[1,3,'#ef6c00'],[2,4,'#1e88e5']];
   x.font='11px system-ui,sans-serif';x.lineWidth=1;x.textAlign='right';
-  for(let v=0;v<=ymax;v+=step){const y=Y(v);x.strokeStyle=bd;x.beginPath();x.moveTo(L,y);x.lineTo(L+pw,y);x.stroke();x.fillStyle=mu;x.fillText(v,L-5,y+4)}
+  for(let v=0;v<=ymax;v+=step){const y=px1(Y(v));x.strokeStyle=bd;x.beginPath();x.moveTo(L,y);x.lineTo(L+pw,y);x.stroke();x.fillStyle=mu;x.fillText(v,L-5,y+4)}
   const ti=[10,30,60,120,300,600,900,1800].find(s=>span/s<=6)||1800;x.textAlign='center';
-  for(let a=0;a<=span;a+=ti){const px=L+pw-a/span*pw;x.strokeStyle=bd;x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ph);x.stroke();
+  for(let a=0;a<=span;a+=ti){const px=px1(L+pw-a/span*pw);x.strokeStyle=bd;x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ph);x.stroke();
     x.fillStyle=mu;x.fillText(a===0?'сейчас':'−'+(a>=3600?a/3600+' ч':a>=60?a/60+' мин':a+' с'),Math.min(px,W-R+10),H-5)}
   function line(k,col,tg){let prev=null;
     h.forEach(p=>{const v=p[k];if(v==null||(tg&&!v)){prev=null;return}
@@ -2069,10 +2073,15 @@ function drawChart(){
   const last=k=>{for(let i=h.length-1;i>=0;i--)if(h[i][k]!=null)return h[i];return null},tags=[];
   SER.forEach(([k,kt,col])=>{const p=last(k);if(!p||now-p[0]>GAP*2)return;
     tags.push({col,y:Y(p[k]),t:Math.round(p[k])+'°',tg:false});if(p[kt])tags.push({col,y:Y(p[kt]),t:Math.round(p[kt])+'°',tg:true})});
-  [false,true].forEach(tg=>{const col=tags.filter(t=>t.tg===tg).sort((a,b)=>a.y-b.y);for(let i=1;i<col.length;i++)if(col[i].y-col[i-1].y<19)col[i].y=col[i-1].y+19;
-    col.forEach(t=>{const xx=L+pw+4+(tg?54:0),w=x.measureText(t.t).width+14;x.beginPath();x.moveTo(xx,t.y);x.lineTo(xx+6,t.y-9);x.lineTo(xx+6+w-6,t.y-9);x.lineTo(xx+w,t.y-9+0);x.lineTo(xx+w,t.y+9);x.lineTo(xx+6,t.y+9);x.closePath();
-      if(tg){x.setLineDash([3,3]);x.strokeStyle=t.col;x.lineWidth=1.2;x.stroke();x.setLineDash([]);x.fillStyle=t.col}else{x.fillStyle=t.col;x.fill();x.fillStyle='#fff'}
-      x.textAlign='left';x.font='bold 11px system-ui,sans-serif';x.fillText(t.t,xx+11,t.y+4);x.font='11px system-ui,sans-serif'})});
+  // метки справа: «пилюля» с указателем на линию; факт — залитая, цель — той же формы с цветной рамкой
+  x.font='bold 11px system-ui,sans-serif';
+  [false,true].forEach(tg=>{const col=tags.filter(t=>t.tg===tg).sort((a,b)=>a.y-b.y);for(let i=1;i<col.length;i++)if(col[i].y-col[i-1].y<20)col[i].y=col[i-1].y+20;
+    col.forEach(t=>{const y=Math.round(t.y),w=Math.ceil(x.measureText(t.t).width)+12,hh=17,x0=Math.round(L+pw+8+(tg?50:0)),r=5;
+      x.beginPath();x.moveTo(x0-5,y);x.lineTo(x0,y-4.5);x.arcTo(x0,y-hh/2,x0+w,y-hh/2,r);x.arcTo(x0+w,y-hh/2,x0+w,y+hh/2,r);
+      x.arcTo(x0+w,y+hh/2,x0,y+hh/2,r);x.arcTo(x0,y+hh/2,x0,y-hh/2,r);x.lineTo(x0,y+4.5);x.closePath();
+      if(tg){x.fillStyle=cd;x.fill();x.strokeStyle=t.col;x.lineWidth=1.5;x.stroke();x.fillStyle=t.col}else{x.fillStyle=t.col;x.fill();x.fillStyle='#fff'}
+      x.textAlign='left';x.fillText(t.t,x0+6,y+4)})});
+  x.font='11px system-ui,sans-serif';
   if(hoverX!=null&&h.length>1&&hoverX>=L&&hoverX<=L+pw){
     const t=now-(L+pw-hoverX)/pw*span;let p=h[0];h.forEach(q=>{if(Math.abs(q[0]-t)<Math.abs(p[0]-t))p=q});const px=X(p[0]);
     x.strokeStyle=fg;x.globalAlpha=.4;x.lineWidth=1;x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ph);x.stroke();x.globalAlpha=1;
@@ -2186,7 +2195,9 @@ function fanLabel(){const r=$('#fanr'),v=r.value;$('#fanv').textContent=v+'%';if
 async function setFan(){const v=+$('#fanr').value;log('> обдув '+v+'%');const r=await api('/api/fan',{percent:v});r.error?log(r.error,'#ef5350'):log(r.reply||'(отправлено)');tick()}
 // ---- цифровая копия принтера
 let GEOM={bx:255,by:210,bz:210,z_bed:true},TW=null,FR=null,visE=0,tgtE=null,eRaf=0,lastT=0,LASTS={},ARM=null,DOWN=null;
-const TOP={x0:22,y0:15,aw:256,ah:196},MINZ=0.5,SNAP=7;   // MINZ — ниже по клику не опускаем: промах мышью не должен вогнать сопло в стол
+// Каретка X выходит за стол: слева пластина на 28 мм, справа гайка прижима BMG на 33 мм; по Y пластина ±24 мм.
+// Направляющие Y стоят дальше, с половиной каретки Y (8 мм) и зазором — так каретки не наезжают друг на друга.
+const FRAME={railL:38,railR:44,ml:54,mr:60,mt:34,mb:60},MINZ=0.5,SNAP=7;   // MINZ — ниже по клику не опускаем: промах мышью не должен вогнать сопло в стол
 // SNAP — полоса вокруг рабочей зоны (в единицах рисунка): клик в ней даёт крайнее значение, иначе в 0/максимум не попасть
 // плавный градиент: серый -> жёлтый -> оранжевый -> красный (непрерывный, без порогов)
 const STOPS=[[0,[100,116,139]],[.28,[245,176,20]],[.62,[240,100,20]],[1,[215,38,38]]];
@@ -2194,67 +2205,176 @@ function tcol(t,max){const r=t==null?0:Math.max(0,Math.min(1,(t-25)/(max-25)));l
   const a=STOPS[i-1],b=STOPS[i],k=(r-a[0])/(b[0]-a[0]);return'rgb('+a[1].map((v,j)=>Math.round(v+(b[1][j]-v)*k)).join(',')+')'}
 const LBL='style="fill:#fff;paint-order:stroke;stroke:#000a;stroke-width:3;font-weight:700"';
 const HIT='fill="transparent"',RING='fill="none" class="ring" stroke-width="2" stroke-dasharray="5 3" style="stroke:var(--acc);display:none"';
+// ---- голова принтера: экструдер BMG + хотэнд E3D V6 в реальных пропорциях (мм). Начало координат — кончик сопла,
+// y вверх отрицательный. Один генератор для карточки «Экструдер» (крупно, подробно) и вида спереди (мелко, схематично).
+// ---- голова принтера: экструдер BMG + хотэнд E3D V6. Размеры V6 — по официальным чертежам E3D (V6-175-SINK,
+// V6-BLOCK-CARTRIDGE, V6-NOZZLE, V6-175-BREAK; общая длина 62.3 мм). Начало координат — кончик сопла, y вверх отрицательный.
+// Один генератор для карточки «Экструдер» (крупно, подробно) и вида спереди (мелко, схематично) — пропорции совпадают.
+const V6={hex:[-5,-2],gap:[-6,-5],blk:[-8,-17.5,23,11.5],cart:[8.5,-10,3],therm:[-5.5,-11.75,1.55],brk:[-19.6,-17.5],
+  fins:[-45.6,-19.6],neck:[-49.6,-45.6],col1:[-52.6,-49.6],groove:[-58.6,-52.6],col2:[-62.3,-58.6]};
+// BMG — размеры сняты с CAD-модели корпуса под оригинальные шестерни Bondtech (printables.com/model/43337):
+// корпус 42×54 мм, вал мотора в центре квадрата NEMA17 (21; 21.3 от низа), ведущий вал на 16.7 мм выше (пара 17/50 зубьев,
+// модуль 0.5), пруток по оси посадки хотэнда; рычаг: шарнир и ось прижимного колеса в 17.4 мм друг от друга.
+// Перевод из координат корпуса (x' от левого края, y' от низа): x = x' − 25, y = −49.6 − y'.
+const BMG_BODY=[[4,0],[38,0],[42,4],[42,49.6],[37.6,54],[18.7,54],[0,38.6],[0,4]],
+  BMG_LATCH=[[15,55.2],[18.3,53],[18.3,7.4],[14.4,1.3],[10.6,.6],[6.7,2.4],[6.1,7.4],[8.3,13],[2.2,17.4],[.2,20.8],[2.2,24.1],[5.6,25.2],[11.1,25.8],[13.3,28],[14.4,53]];
+const HEAD={top:123,hob:[-4.7,-87.6],big:12.5,pin:[-4,-70.9],pinR:4.25,idl:[4.7,-87.8],hobR:3.65,l:-26,r:35,rodY:-58.6};
+const EK=2,GEAR_K=50/17,HOB_DEG=360/(2*Math.PI*HEAD.hobR);   // передаточное BMG; градусов колеса на 1 мм прутка
+function headSVG(p,k,detail){
+  // detail — карточка «Экструдер»: подробно и в разрезе по оси прутка (как на чертежах Mellow/Trianglelab);
+  // иначе — вид спереди принтера: снаружи, схематично
+  const n=v=>+(v*k).toFixed(2),R=(x,y,w,h,a)=>'<rect x="'+n(x)+'" y="'+n(y)+'" width="'+n(w)+'" height="'+n(h)+'" '+(a||'')+'/>';
+  const C=(x,y,r,a)=>'<circle cx="'+n(x)+'" cy="'+n(y)+'" r="'+n(r)+'" '+(a||'')+'/>',sw=detail?1.2:.8;
+  const ln='style="fill:var(--card);stroke:var(--fg)" stroke-width="'+sw+'"',metal='style="fill:var(--mut)"',H=HEAD,B=V6.blk;
+  const cyl=(y0,y1,d,a)=>R(-d/2,y0,d,y1-y0,a);   // тело вращения в проекции — прямоугольник по диаметру
+  const cut='style="fill:var(--bg)"';   // полость в разрезе
+  let s='';
+  // ---------- хотэнд V6 ----------
+  s+=cyl(V6.col2[0],V6.col2[1],16,ln)+cyl(V6.groove[0],V6.groove[1],12,'style="fill:var(--bd);stroke:var(--mut)" stroke-width="'+sw*.7+'"')+cyl(V6.col1[0],V6.col1[1],16,ln);
+  s+=cyl(V6.neck[0],V6.neck[1],10,'style="fill:var(--bd)"')+cyl(V6.fins[0],V6.fins[1],10,'style="fill:var(--bd)"');
+  for(let i=0;i<11;i++){const yb=V6.fins[1]-i*2.5;s+=R(-11.15,yb-1,22.3,1,metal+' rx="'+n(.4)+'"')}   // 11 рёбер Ø22.3, 1 мм, шаг 2.5
+  if(detail){   // разрез радиатора: канал Ø4.2 с PTFE сверху, резьба M7 под термобарьер снизу (15.1 мм)
+    s+=cyl(V6.col2[0],V6.fins[1]-15.1,4.2,cut)+cyl(V6.fins[1]-15.1,V6.fins[1],7,cut);
+    // термобарьер (V6-175-BREAK): в радиаторе M7 на 15 мм, сверху гнездо Ø4.1 — в него на треть заходит PTFE-трубка
+    const bt=V6.fins[1]-15;
+    s+=cyl(bt,V6.brk[1],7,'style="fill:var(--mut);stroke:var(--fg)" stroke-width=".6"')+cyl(bt,bt+5,4.1,cut)+cyl(bt+5,V6.brk[1],2,cut);
+    s+=cyl(-80,bt+5,4,'style="fill:#e5e7eb" fill-opacity=".9"');   // PTFE-трубка от колёс BMG в термобарьер
+  }
+  // промежуток 2.1 мм: тонкая трубка Ø3 со стенкой 0.5 мм — тут тепло и отсекается
+  s+=cyl(V6.brk[0],V6.brk[1],3,'style="fill:var(--mut);stroke:var(--fg)" stroke-width="'+(detail?.5:.3)+'"');
+  if(detail)s+=cyl(V6.brk[0],V6.brk[1],2,cut);
+  // блок 23×11.5: сопло в 8 мм от левого торца, справа картридж Ø6 (торец к нам), слева термистор Ø3.1
+  s+='<g id="'+p+'Block" fill="#64748b">'+R(B[0],B[1],B[2],B[3],'rx="'+n(.6)+'" style="stroke:var(--fg)" stroke-width="'+sw+'"')+'</g>';
+  if(detail)s+=cyl(B[1],B[1]+5,6,'style="fill:var(--mut)"')+cyl(B[1],B[1]+5,2,cut);   // термобарьер в блоке (5 мм)
+  s+=R(V6.cart[0]+V6.cart[2],V6.cart[1]-.5,B[0]+B[2]-V6.cart[0]-V6.cart[2],1,'fill="#000" fill-opacity=".45"');   // прорезь зажима
+  s+=C(V6.cart[0],V6.cart[1],V6.cart[2],'fill="#2b2f33" style="stroke:var(--fg)" stroke-width="'+sw*.7+'"');
+  if(detail){s+=C(V6.cart[0],V6.cart[1],1.6,'fill="#3a3f45"');
+    s+=C(V6.therm[0],V6.therm[1],V6.therm[2],'fill="#2b2f33" style="stroke:var(--fg)" stroke-width=".6"');
+    s+=R(11.6,B[1]-1.6,3.4,1.6,metal+' rx="'+n(.5)+'"')}   // головка винта зажима сверху
+  const wire=(dx,w)=>'<path d="M'+n(V6.cart[0]+dx)+' '+n(V6.cart[1])+' C'+n(V6.cart[0]+dx+.5)+' '+n(B[1]-4)+' '+n(15+dx)+' '+n(-26)+' '+n(16+dx)+' '+n(-44)+'" fill="none" stroke="#b91c1c" stroke-width="'+n(w)+'" stroke-linecap="round"/>';
+  s+=wire(-.8,detail?.9:.7);if(detail)s+=wire(.8,.9);   // провода картриджа — вверх, к плате головы
+  // сопло V6: резьба в блоке (в разрезе), видимый зазор 0.5 мм, шестигранник 7×3, острый конус к кончику Ø1 — цвет по температуре целиком
+  s+=cyl(V6.gap[0]+.5,V6.gap[1],6,'style="fill:var(--mut)"');
+  s+='<g id="'+p+'Noz" fill="#64748b">'+(detail?cyl(B[1]+5,B[1]+B[3],6,'style="stroke:var(--fg)" stroke-width=".5"'):'')+
+     R(-3.5,V6.hex[0],7,3,'style="stroke:var(--fg)" stroke-width="'+sw*.75+'"')+
+     '<polygon points="'+[[-2.4,-2],[2.4,-2],[.5,0],[-.5,0]].map(q=>n(q[0])+','+n(q[1])).join(' ')+'" style="stroke:var(--fg)" stroke-width="'+sw*.75+'"/></g>';
+  if(detail)s+=[-1.75,1.75].map(x=>'<line x1="'+n(x)+'" y1="'+n(-5)+'" x2="'+n(x)+'" y2="'+n(-2)+'" style="stroke:var(--bg)" stroke-opacity=".55"/>').join('')+
+     cyl(B[1]+5,-.3,1,cut);   // канал сопла
+  // ---------- экструдер BMG ----------
+  const P=(pts,tx,ty,a)=>'<polygon points="'+pts.map(q=>n(q[0]+tx)+','+n(ty-q[1])).join(' ')+'" '+a+'/>';
+  s+=P(BMG_BODY,-25,-49.6,ln+' stroke-linejoin="round"');
+  s+=R(-3.5,-105.6,7,2,ln)+R(-4.6,-106.8,9.2,1.2,'style="fill:var(--mut)"')+R(-3.8,-108.4,7.6,1.6,ln+' rx="'+n(.7)+'"');   // фитинг: основание, кольцо цанги, шляпка
+  const xr=detail?'style="fill:var(--bg);stroke:var(--mut)"':'fill="none" style="stroke:var(--mut)" stroke-opacity=".75"';
+  const gear=(id,x,y,r,teeth,spokes)=>{const per=2*Math.PI*r/teeth;
+    return '<g transform="translate('+n(x)+','+n(y)+')"><g id="'+p+id+'">'+
+      (detail?'<circle r="'+n(r)+'" fill="none" style="stroke:var(--fg)" stroke-width="'+n(.9)+'" stroke-dasharray="'+n(per*.5)+' '+n(per*.5)+'"/>':'')+
+      '<circle r="'+n(r-(detail?.9:0))+'" '+xr+' stroke-width="'+(detail?.9:.6)+'"/>'+
+      (spokes?[0,120,240].map(a=>'<line x1="0" y1="0" x2="'+n((r-1.5)*Math.cos(a*Math.PI/180))+'" y2="'+n((r-1.5)*Math.sin(a*Math.PI/180))+'" style="stroke:var(--mut)" stroke-width="'+n(.8)+'"/>').join(''):'')+
+      '<circle r="'+n(Math.min(1.4,r/3))+'" style="fill:var(--mut)"/></g></g>'};
+  s+=gear('Big',H.hob[0],H.hob[1],H.big,50,true)+gear('Pin',H.pin[0],H.pin[1],H.pinR,17,true)+gear('Hob',H.hob[0],H.hob[1],H.hobR+.5,20,false);
+  // винт прижима: вкручен в корпус у правого верхнего края, проходит сквозь лапку рычага, пружина — между лапкой и гайкой
+  const sy=-49.6-51.3;
+  if(detail)s+=R(11,sy-.8,22,1.6,'style="fill:var(--mut)"');   // стержень винта (его часть в корпусе видна в разрезе)
+  // рычаг: шарнир (10.6; 4.7) совпадает с отверстием корпуса (36.4; 22.1) → сдвиг (25.8; 17.4)
+  s+=P(BMG_LATCH,.8,-67,'style="fill:var(--bg);stroke:var(--fg)" stroke-width="'+sw+'" stroke-linejoin="round"');
+  s+=C(.8+10.6,-67-4.7,1.5,'style="fill:var(--card);stroke:var(--mut)" stroke-width=".6"');
+  s+=R(19.1,sy-.8,8,1.6,'style="fill:var(--mut)"');   // винт снаружи лапки
+  s+='<path d="M'+n(19.3)+' '+n(sy)+[...Array(9)].map((_,i)=>' L'+n(19.9+i*.75)+' '+n(sy+(i%2?2.6:-2.6))).join('')+' L'+n(26.8)+' '+n(sy)+'" fill="none" style="stroke:var(--fg)" stroke-width="'+n(detail?.45:.35)+'"/>';   // пружина
+  s+=R(27,sy-4.3,6.2,8.6,'style="fill:var(--mut);stroke:var(--fg)" stroke-width="'+sw*.6+'" rx="'+n(1)+'"');   // рифлёная гайка (до 60 мм от левого края корпуса)
+  if(detail)s+=[0,1,2,3,4].map(i=>'<line x1="'+n(27.8+i*1.15)+'" y1="'+n(sy-4)+'" x2="'+n(27.8+i*1.15)+'" y2="'+n(sy+4)+'" style="stroke:var(--bg)" stroke-opacity=".45" stroke-width=".7"/>').join('');
+  s+=gear('Idl',H.idl[0],H.idl[1],H.hobR+.5,20,false);   // прижимное колесо на рычаге
+  return s}
+// плашка температуры на видах принтера: цветная точка (цвет — температура), факт жирно, цель приглушённо;
+// ширина подгоняется под текст при каждом обновлении. a — привязка: start/middle/end
+function pill(id,x,y,fs,a,lx,ly){return '<g id="'+id+'" data-a="'+(a||'middle')+'" data-fs="'+fs+'"'+(lx!=null?' data-lx="'+lx+'" data-ly="'+ly+'"':'')+' transform="translate('+x+','+y+')" style="pointer-events:none">'+
+  (lx!=null?'<line class="pll" style="stroke:var(--mut)" stroke-width="'+(fs*.09)+'"/><circle class="pld" cx="'+lx+'" cy="'+ly+'" r="'+(fs*.16)+'" style="fill:var(--mut)"/>':'')+
+  '<rect rx="'+(fs*.8)+'" height="'+(fs*1.7)+'" y="'+(-fs*.85)+'" style="fill:var(--card);fill-opacity:.93;stroke:var(--bd)" stroke-width="'+(fs*.1)+'"/>'+
+  '<circle class="pdot" r="'+(fs*.32)+'" fill="#64748b"/><text font-size="'+fs+'" y="'+(fs*.36)+'" style="fill:var(--fg)"><tspan class="pl" style="fill:var(--mut)"></tspan>'+
+  '<tspan class="pv" font-weight="700"></tspan><tspan class="pt" style="fill:var(--mut)"></tspan></text></g>'}
+function setPill(id,t,col,label){const g=$(id);if(!g)return;const fs=+g.dataset.fs,tx=g.querySelector('text');
+  g.querySelector('.pl').textContent=label?label+' ':'';g.querySelector('.pv').textContent=t?Math.round(t[0])+'°':'—';
+  g.querySelector('.pt').textContent=t&&t[1]?' / '+Math.round(t[1])+'°':'';
+  let tl=0;try{tl=tx.getComputedTextLength()}catch(_){}if(!tl)tl=tx.textContent.length*fs*.55;
+  const pad=fs*.6,dot=fs*.64+fs*.4,w=Math.ceil(pad+dot+tl+pad),a=g.dataset.a,x0=a==='end'?-w:a==='start'?0:-w/2,r=g.querySelector('rect'),c=g.querySelector('.pdot');
+  r.setAttribute('x',x0);r.setAttribute('width',w);c.setAttribute('cx',x0+pad+fs*.32);c.setAttribute('fill',col);tx.setAttribute('x',x0+pad+dot);
+  const L=g.querySelector('.pll');if(L){   // выноска — от ближайшего края плашки
+    const lx=+g.dataset.lx,ly=+g.dataset.ly,h=fs*.85;let sx,sy;
+    if(lx<x0){sx=x0;sy=0}else if(lx>x0+w){sx=x0+w;sy=0}else{sx=Math.max(x0+h,Math.min(x0+w-h,lx));sy=ly<0?-h:h}
+    L.setAttribute('x1',sx);L.setAttribute('y1',sy);L.setAttribute('x2',lx);L.setAttribute('y2',ly)}}
 function buildTwin(){
-  const g=GEOM,sc=Math.min(TOP.aw/g.bx,TOP.ah/g.by),bw=g.bx*sc,bh=g.by*sc,ox=TOP.x0+(TOP.aw-bw)/2,oy=TOP.y0+(TOP.ah-bh)/2;TW={s:sc,ox,oy,bw,bh};
-  {const T=g.bz*sc,fl=93+4+T,bot=fl+24;FR={l:ox,bw:bw,tip:93,T:T,floor:fl,bot:bot,vbH:Math.round(bot+36)}}
+  const g=GEOM,F=FRAME,sc=300/(g.bx+F.ml+F.mr),bw=g.bx*sc,bh=g.by*sc,ox=F.ml*sc,oy=F.mt*sc,
+    rl=ox-F.railL*sc,rr=ox+bw+F.railR*sc,ty=26*sc;   // направляющие Y; выезд каретки по Y за стол
+  TW={s:sc,ox,oy,bw,bh,rl,rr,vbH:Math.round((g.by+F.mt+F.mb)*sc)};
+  $('#svgTop').setAttribute('viewBox','0 0 300 '+TW.vbH);
+  {const tip=Math.round(6+HEAD.top*sc),T=g.bz*sc,fl=tip+4+T,bot=fl+24;FR={l:ox,bw:bw,tip:tip,T:T,floor:fl,bot:bot,vbH:Math.round(bot+36),s:sc,
+    beam:Math.round(tip+HEAD.rodY*sc)}}   // верхняя балка рамы — на уровне валов X, фидер торчит над ней
   $('#svgFront').setAttribute('viewBox','0 0 300 '+FR.vbH);   // вид спереди использует ту же ось X, что и вид сверху
   let grid='';for(let v=50;v<g.bx;v+=50)grid+='<line x1="'+(ox+v*sc)+'" y1="'+oy+'" x2="'+(ox+v*sc)+'" y2="'+(oy+bh)+'" stroke="#fff" stroke-opacity=".25"/>';
   for(let v=50;v<g.by;v+=50)grid+='<line x1="'+ox+'" y1="'+(oy+bh-v*sc)+'" x2="'+(ox+bw)+'" y2="'+(oy+bh-v*sc)+'" stroke="#fff" stroke-opacity=".25"/>';
   const rod='style="fill:var(--mut)"';
   $('#svgTop').innerHTML=
-   '<rect x="'+(ox-16)+'" y="'+(oy-12)+'" width="'+(bw+32)+'" height="'+(bh+24)+'" rx="8" fill="none" style="stroke:var(--bd)" stroke-width="3"/>'+
-   '<line x1="'+(ox-9)+'" y1="'+(oy-6)+'" x2="'+(ox-9)+'" y2="'+(oy+bh+6)+'" style="stroke:var(--mut)" stroke-width="3" opacity=".7"/><line x1="'+(ox+bw+9)+'" y1="'+(oy-6)+'" x2="'+(ox+bw+9)+'" y2="'+(oy+bh+6)+'" style="stroke:var(--mut)" stroke-width="3" opacity=".7"/>'+
+   '<rect x="'+(rl-12*sc)+'" y="'+(oy-ty-4)+'" width="'+(rr-rl+24*sc)+'" height="'+(bh+2*ty+8)+'" rx="8" fill="none" style="stroke:var(--bd)" stroke-width="3"/>'+
+   '<line x1="'+rl+'" y1="'+(oy-ty)+'" x2="'+rl+'" y2="'+(oy+bh+ty)+'" style="stroke:var(--mut)" stroke-width="'+(8*sc)+'" stroke-linecap="round" opacity=".75"/><line x1="'+rr+'" y1="'+(oy-ty)+'" x2="'+rr+'" y2="'+(oy+bh+ty)+'" style="stroke:var(--mut)" stroke-width="'+(8*sc)+'" stroke-linecap="round" opacity=".75"/>'+
    '<rect id="tBed" x="'+ox+'" y="'+oy+'" width="'+bw+'" height="'+bh+'" rx="4" fill="#64748b" fill-opacity=".9" style="stroke:var(--mut)"/>'+grid+
    '<circle cx="'+ox+'" cy="'+(oy+bh)+'" r="2.5" style="fill:var(--fg)"/>'+
    '<g id="tModel" transform="translate('+ox+','+(oy+bh)+') scale('+(sc/10)+','+(-sc/10)+')" style="display:none;pointer-events:none">'+
     '<path id="tGhost" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path id="tLayH" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#000" stroke-opacity=".45" stroke-width="3.2"/>'+
     '<path id="tLay" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-width="1.6"/></g>'+
-   '<g id="tGant"><rect x="'+(ox-14)+'" y="-7" width="'+(bw+28)+'" height="3" rx="1.5" '+rod+' opacity=".85"/><rect x="'+(ox-14)+'" y="4" width="'+(bw+28)+'" height="3" rx="1.5" '+rod+' opacity=".85"/></g>'+
-   '<text id="tBedT" x="'+(ox+bw/2)+'" y="'+(oy+bh-8)+'" text-anchor="middle" font-size="9" '+LBL+'>—</text>'+
+   '<g id="tGant">'+[-1,1].map(d=>'<rect x="'+rl+'" y="'+((d*18-4)*sc)+'" width="'+(rr-rl)+'" height="'+(8*sc)+'" rx="'+(4*sc)+'" '+rod+' opacity=".9"/>').join('')+
+   [rl,rr].map(x=>'<rect x="'+(x-8*sc)+'" y="'+(-26*sc)+'" width="'+(16*sc)+'" height="'+(52*sc)+'" rx="2" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1"/>').join('')+'</g>'+
+
    '<rect id="tZone" x="'+(ox-SNAP)+'" y="'+(oy-SNAP)+'" width="'+(bw+2*SNAP)+'" height="'+(bh+2*SNAP)+'" rx="6" style="fill:var(--acc);fill-opacity:.09;stroke:var(--acc);stroke-opacity:.5;display:none;pointer-events:none" stroke-width="1"/>'+
-   '<g id="tHead" style="cursor:pointer"><rect x="-19" y="-14" width="38" height="28" rx="4" style="fill:var(--card);stroke:var(--fg)" stroke-width="2"/><rect x="-10" y="-10" width="20" height="20" rx="3" style="fill:var(--bg);stroke:var(--mut)"/>'+
-   '<circle id="tNoz" r="3.5" fill="#64748b" style="stroke:var(--fg)"/><rect x="-23" y="-18" width="46" height="36" '+HIT+'/><rect id="tRing" x="-25" y="-19" width="50" height="38" rx="8" '+RING+'/></g>'+
-   '<text x="'+(ox+bw/2)+'" y="'+(oy+bh+19)+'" text-anchor="middle" font-size="6.5" letter-spacing=".08em" style="fill:var(--mut)" opacity=".8">перед</text>'+
+   // каретка сверху: пластина на двух валах X (±18 мм), на ней корпус BMG 42×33 над осью прутка, под ним радиатор V6
+   '<g id="tHead" style="cursor:pointer"><rect class="hb" x="'+(-28*sc)+'" y="'+(-24*sc)+'" width="'+(56*sc)+'" height="'+(48*sc)+'" rx="3" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1"/>'+
+   '<rect class="hb" x="'+(-25*sc)+'" y="'+(-16.5*sc)+'" width="'+(42*sc)+'" height="'+(33*sc)+'" rx="2.5" style="fill:var(--card);stroke:var(--fg)" stroke-width="1"/>'+
+   '<line class="hb" x1="'+(-6.3*sc)+'" y1="'+(-16.5*sc)+'" x2="'+(-6.3*sc)+'" y2="'+(16.5*sc)+'" style="stroke:var(--mut)" stroke-width=".8"/>'+   // ребро скоса корпуса
+   '<rect class="hb" x="'+(11*sc)+'" y="'+(-10*sc)+'" width="'+(8.3*sc)+'" height="'+(20*sc)+'" rx="1.5" style="fill:var(--bg);stroke:var(--fg)" stroke-width="1"/>'+   // рычаг
+   '<rect class="hb" x="'+(19.3*sc)+'" y="'+(-.8*sc)+'" width="'+(8*sc)+'" height="'+(1.6*sc)+'" style="fill:var(--mut)"/>'+
+   '<rect class="hb" x="'+(27*sc)+'" y="'+(-4.3*sc)+'" width="'+(6.2*sc)+'" height="'+(8.6*sc)+'" rx="1" style="fill:var(--mut)"/>'+   // винт и гайка
+   '<circle class="hb" r="'+(4.6*sc)+'" style="fill:var(--bd);stroke:var(--mut)" stroke-width=".8"/>'+   // фитинг над осью прутка
+   '<circle class="hb" r="'+(11.15*sc)+'" fill="none" style="stroke:var(--mut)" stroke-width="1" stroke-dasharray="2 1.6"/>'+
+   '<circle id="tNoz" r="3.5" fill="#64748b" style="stroke:var(--fg)"/><rect x="'+(-28*sc-3)+'" y="'+(-24*sc-3)+'" width="'+(56*sc+6)+'" height="'+(48*sc+6)+'" '+HIT+'/><rect id="tRing" x="'+(-28*sc-5)+'" y="'+(-24*sc-5)+'" width="'+(56*sc+10)+'" height="'+(48*sc+10)+'" rx="7" '+RING+'/></g>'+
+   '<text x="'+(ox+bw/2)+'" y="'+(oy+bh+ty+17)+'" text-anchor="middle" font-size="6.5" letter-spacing=".08em" style="fill:var(--mut)" opacity=".8">перед</text>'+
+   pill('tBedT',rr+12*sc,oy+bh+ty+15,8,'end',ox+bw-rr-12*sc,-ty-15)+   // под рамой справа, в строке с «перед»; выноска к углу стола
    '<g id="tHov" style="display:none;pointer-events:none"><line id="tHovH" x1="'+ox+'" x2="'+(ox+bw)+'" style="stroke:var(--acc)" stroke-width="1.3" stroke-dasharray="4 3"/><line id="tHovV" y1="'+oy+'" y2="'+(oy+bh)+'" style="stroke:var(--acc)" stroke-width="1.3" stroke-dasharray="4 3"/><circle id="tHovC" r="3.5" style="fill:var(--acc)"/><rect id="tHovR" rx="3" height="15" style="fill:var(--card);fill-opacity:.94;stroke:var(--acc)" stroke-width="1"/><text id="tHovT" font-size="10" style="fill:var(--fg);font-weight:700"></text></g>';
-  const rx1=ox+22,rx2=ox+bw-22;
-  let fins='';for(let i=0;i<4;i++)fins+='<rect x="-9" y="'+(59+i*4)+'" width="18" height="2" rx="1" '+rod+'/>';
+  const rx1=ox+22,rx2=ox+bw-22,cx=ox+bw/2,B=FR.beam,hs=sc,ht=HEAD.top*hs;
   $('#svgFront').innerHTML=
-   '<rect x="'+(ox-26)+'" y="'+FR.bot+'" width="'+(bw+52)+'" height="26" rx="6" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1.5"/><rect x="'+(ox-26)+'" y="'+FR.bot+'" width="'+(bw+52)+'" height="7" rx="3" '+rod+' opacity=".45"/>'+
-   '<rect x="'+(ox-14)+'" y="'+(FR.bot+26)+'" width="26" height="6" rx="2" '+rod+'/><rect x="'+(ox+bw-12)+'" y="'+(FR.bot+26)+'" width="26" height="6" rx="2" '+rod+'/>'+
-   '<rect x="'+(ox-18)+'" y="4" width="'+(bw+36)+'" height="10" rx="3" '+rod+' opacity=".85"/>'+
-   '<rect x="'+(ox-18)+'" y="14" width="10" height="'+(FR.bot-14)+'" rx="3" style="fill:var(--bd)"/><rect x="'+(ox+bw+8)+'" y="14" width="10" height="'+(FR.bot-14)+'" rx="3" style="fill:var(--bd)"/>'+
-   '<line x1="'+rx1+'" y1="14" x2="'+rx1+'" y2="'+FR.bot+'" style="stroke:var(--mut)" stroke-width="3" opacity=".55"/><line x1="'+rx2+'" y1="14" x2="'+rx2+'" y2="'+FR.bot+'" style="stroke:var(--mut)" stroke-width="3" opacity=".55"/>'+
-   '<line x1="'+(ox+bw/2)+'" y1="40" x2="'+(ox+bw/2)+'" y2="'+FR.bot+'" style="stroke:var(--mut)" stroke-width="2" stroke-dasharray="3 3" opacity=".5"/>'+
+   '<defs><pattern id="zThread" width="'+(8*sc)+'" height="'+(2*sc)+'" patternUnits="userSpaceOnUse"><rect width="'+(8*sc)+'" height="'+(2*sc)+'" style="fill:var(--mut)"/>'+
+   '<line x1="0" y1="'+(2*sc)+'" x2="'+(8*sc)+'" y2="0" style="stroke:var(--bg)" stroke-width="'+(.7*sc)+'" opacity=".7"/></pattern></defs>'+
+   // основание с ножками, винт Z с муфтой и мотором внизу
+   '<rect x="'+(rl-8)+'" y="'+FR.bot+'" width="'+(rr-rl+16)+'" height="26" rx="6" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1.5"/><rect x="'+(rl-8)+'" y="'+FR.bot+'" width="'+(rr-rl+16)+'" height="7" rx="3" '+rod+' opacity=".45"/>'+
+   '<rect x="'+(rl-2)+'" y="'+(FR.bot+26)+'" width="26" height="6" rx="2" '+rod+'/><rect x="'+(rr-24)+'" y="'+(FR.bot+26)+'" width="26" height="6" rx="2" '+rod+'/>'+
+   // стойки и верхняя балка рамы (на заднем плане, голова проходит перед ней)
+   '<rect x="'+(rl-5)+'" y="'+(B-5)+'" width="10" height="'+(FR.bot-B+5)+'" rx="3" style="fill:var(--bd)"/><rect x="'+(rr-5)+'" y="'+(B-5)+'" width="10" height="'+(FR.bot-B+5)+'" rx="3" style="fill:var(--bd)"/>'+
+   '<rect x="'+(rl-5)+'" y="'+(B-5)+'" width="'+(rr-rl+10)+'" height="10" rx="3" '+rod+' opacity=".7"/>'+
+   '<rect x="'+(rx1-6*sc)+'" y="'+(B+5)+'" width="'+(12*sc)+'" height="'+(FR.bot-B-5)+'" style="fill:var(--mut)" opacity=".5"/><rect x="'+(rx2-6*sc)+'" y="'+(B+5)+'" width="'+(12*sc)+'" height="'+(FR.bot-B-5)+'" style="fill:var(--mut)" opacity=".5"/>'+
+   '<rect x="'+(cx-4*sc)+'" y="'+(B+5)+'" width="'+(8*sc)+'" height="'+(FR.bot-25*sc-B-5)+'" fill="url(#zThread)" opacity=".55"/>'+
+   '<rect x="'+(cx-10*sc)+'" y="'+(FR.bot-25*sc)+'" width="'+(20*sc)+'" height="'+(25*sc)+'" rx="'+(2*sc)+'" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1"/>'+
+   '<line x1="'+(cx-10*sc)+'" y1="'+(FR.bot-12.5*sc)+'" x2="'+(cx+10*sc)+'" y2="'+(FR.bot-12.5*sc)+'" style="stroke:var(--mut)" stroke-width=".8" opacity=".6"/>'+
    '<rect id="fZone" rx="4" style="fill:var(--acc);fill-opacity:.09;stroke:var(--acc);stroke-opacity:.5;display:none;pointer-events:none" stroke-width="1"/>'+
    '<g id="fBedG" style="cursor:pointer"><rect id="fBed" x="'+ox+'" y="0" width="'+bw+'" height="10" rx="2" fill="#64748b" style="stroke:var(--mut)"/>'+
    '<rect x="'+(rx1-9)+'" y="10" width="18" height="7" rx="2" '+rod+'/><rect x="'+(rx2-9)+'" y="10" width="18" height="7" rx="2" '+rod+'/>'+
-   '<text id="fBedT" x="'+(ox+bw/2)+'" y="8" text-anchor="middle" font-size="7.5" '+LBL+'>—</text>'+
+   pill('fBedT',(rx1+6*sc+cx-4*sc)/2,19,7)+
    '<g id="fModel" transform="translate('+ox+',0) scale('+sc+','+(-sc)+')" style="display:none;pointer-events:none">'+
     '<path id="fSilDone" style="fill:var(--fg);fill-opacity:.5"/></g>'+
    '<rect x="'+ox+'" y="-4" width="'+bw+'" height="24" '+HIT+'/><rect id="fRingB" x="'+(ox-3)+'" y="-4" width="'+(bw+6)+'" height="24" rx="4" '+RING+'/></g>'+
-   '<g id="fGantry"><line x1="'+(ox-8)+'" y1="44" x2="'+(ox+bw+8)+'" y2="44" style="stroke:var(--mut)" stroke-width="4" stroke-linecap="round"/>'+
-   '<g id="fHead" style="cursor:pointer"><rect x="-19" y="14" width="38" height="22" rx="3" style="fill:var(--card);stroke:var(--fg)" stroke-width="1.5"/><circle cx="0" cy="25" r="6" fill="none" style="stroke:var(--mut)"/>'+
-   '<rect x="-18" y="36" width="36" height="22" rx="3" style="fill:var(--card);stroke:var(--fg)" stroke-width="1.5"/><circle cx="-11" cy="42" r="2" '+rod+'/><circle cx="11" cy="42" r="2" '+rod+'/>'+
-   '<rect x="-4" y="58" width="8" height="16" style="fill:var(--bd);stroke:var(--mut)"/>'+fins+'<rect x="-2" y="74" width="4" height="5" '+rod+'/>'+
-   '<rect id="fBlock" x="-7" y="79" width="14" height="8" rx="1" fill="#64748b" style="stroke:var(--fg)"/><rect x="-4" y="87" width="8" height="2.6" fill="#b45309" style="stroke:var(--fg)" stroke-width=".6"/><polygon id="fNoz" points="-2.2,89.6 2.2,89.6 .8,93 -.8,93" fill="#64748b" style="stroke:var(--fg)" stroke-width=".6"/>'+
-   '<text id="fNozT" x="22" y="86" font-size="7.5" '+LBL+'>—</text><rect x="-22" y="12" width="44" height="84" '+HIT+'/><rect id="fRingH" x="-24" y="10" width="48" height="88" rx="6" '+RING+'/></g></g>'+
+   // ось X: два вала на уровне балки, каретка с головой перед ними
+   '<g id="fGantry"><rect x="'+rl+'" y="'+(FR.tip+(HEAD.rodY-4)*hs)+'" width="'+(rr-rl)+'" height="'+(8*hs)+'" rx="'+(4*hs)+'" '+rod+'/>'+
+   '<g id="fHead" style="cursor:pointer"><g transform="translate(0,'+FR.tip+')">'+
+    '<rect x="'+(-27*hs)+'" y="'+(-67.6*hs)+'" width="'+(54*hs)+'" height="'+(18*hs)+'" rx="2" style="fill:var(--bd);stroke:var(--mut)" stroke-width=".8"/>'+
+    headSVG('f',hs,false)+'</g>'+
+   pill('fNozT',17*hs+3,FR.tip-8*hs,7,'start')+
+   '<rect x="'+(HEAD.l*hs-2)+'" y="'+(FR.tip-ht-3)+'" width="'+((HEAD.r-HEAD.l)*hs+4)+'" height="'+(ht+5)+'" '+HIT+'/>'+
+   '<rect id="fRingH" x="'+(HEAD.l*hs-4)+'" y="'+(FR.tip-ht-5)+'" width="'+((HEAD.r-HEAD.l)*hs+8)+'" height="'+(ht+9)+'" rx="6" '+RING+'/></g></g>'+
    '<g id="fHov" style="display:none;pointer-events:none"><line id="fHovL" style="stroke:var(--acc)" stroke-width="1.5" stroke-dasharray="4 3"/><circle id="fHovC" r="3.5" style="fill:var(--acc)"/><rect id="fHovR" rx="3" height="15" style="fill:var(--card);fill-opacity:.94;stroke:var(--acc)" stroke-width="1"/><text id="fHovT" font-size="10" style="fill:var(--fg);font-weight:700"></text></g>';
-  let efins='';for(let i=0;i<7;i++)efins+='<rect x="62" y="'+(146+i*8)+'" width="56" height="4" rx="2" '+rod+' opacity=".85"/>';
+  // карточка экструдера: та же голова крупно, в разрезе; рамка рисунка — точно по габариту головы (−26…34 × −124…+5 мм)
+  const ek=EK,ex=26*ek+2,ey=124*ek+2,en=v=>+(v*ek).toFixed(2);
+  $('#svgExt').setAttribute('viewBox','0 0 '+(66*ek+4)+' '+(129*ek+4));
   $('#svgExt').innerHTML=
-   '<rect x="12" y="10" width="156" height="124" rx="12" style="fill:var(--card);stroke:var(--mut)" stroke-width="2"/>'+
-   '<g id="gDrive"><circle cx="62" cy="72" r="25" fill="none" style="stroke:var(--fg)" stroke-width="8" stroke-dasharray="7 4.7"/><circle cx="62" cy="72" r="19" style="fill:var(--bg);stroke:var(--mut)"/><line x1="62" y1="72" x2="62" y2="56" style="stroke:var(--mut)" stroke-width="3"/><circle cx="62" cy="72" r="4" '+rod+'/></g>'+
-   '<g id="gIdler"><circle cx="118" cy="72" r="21" fill="none" style="stroke:var(--mut)" stroke-width="7" stroke-dasharray="6 4.5"/><circle cx="118" cy="72" r="16" style="fill:var(--bg);stroke:var(--bd)"/><line x1="118" y1="72" x2="118" y2="59" style="stroke:var(--mut)" stroke-width="3"/><circle cx="118" cy="72" r="3.5" '+rod+'/></g>'+
-   '<rect x="83" y="134" width="14" height="10" rx="2" fill="#3b82f6" style="stroke:var(--fg)"/>'+
-   '<rect x="82" y="144" width="16" height="58" style="fill:var(--bd);stroke:var(--mut)"/>'+efins+
-   '<rect x="86" y="202" width="8" height="16" style="fill:var(--bd);stroke:var(--mut)"/><rect x="87.5" y="206" width="5" height="8" '+rod+'/>'+
-   '<rect id="eBlock" x="64" y="218" width="52" height="26" rx="3" fill="#64748b" style="stroke:var(--fg)" stroke-width="1.5"/>'+
-   '<rect x="116" y="224" width="16" height="7" rx="3" fill="#7f1d1d" style="stroke:var(--fg)"/><path d="M132 227 H146 Q152 227 152 234" fill="none" stroke="#7f1d1d" stroke-width="2"/>'+
-   '<circle cx="70" cy="238" r="2.5" style="fill:var(--bg);stroke:var(--fg)"/>'+
-   '<text id="eNozT" x="90" y="235" text-anchor="middle" font-size="11" '+LBL+'>—</text>'+
-   '<rect x="78" y="244" width="24" height="8" rx="1.5" fill="#b45309" style="stroke:var(--fg)" stroke-width="1"/><line x1="84" y1="244" x2="84" y2="252" style="stroke:var(--fg)" stroke-opacity=".35"/><line x1="96" y1="244" x2="96" y2="252" style="stroke:var(--fg)" stroke-opacity=".35"/><polygon id="eNoz" points="84,252 96,252 92.4,259.5 87.6,259.5" fill="#64748b" style="stroke:var(--fg)" stroke-width="1"/><rect x="89.3" y="257" width="1.4" height="2.5" fill="#000" fill-opacity=".75"/>'+
-   '<line id="eFil" x1="90" y1="0" x2="90" y2="218" stroke="#22c55e" stroke-width="5" stroke-dasharray="9 6" stroke-dashoffset="0"/>'+
-   '<line id="eMelt" x1="90" y1="260.5" x2="90" y2="268" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" style="opacity:0"/>'+
-   '<g transform="translate(34,262)"><circle r="17" fill="none" style="stroke:var(--mut)" stroke-width="2"/><g id="eBlades" class="blades"><path d="M0 0 L-3 -13 A13 13 0 0 1 8 -10Z M0 0 L13 -3 A13 13 0 0 1 10 8Z M0 0 L3 13 A13 13 0 0 1 -8 10Z M0 0 L-13 3 A13 13 0 0 1 -10 -8Z" '+rod+'/></g></g>';
+   '<g transform="translate('+ex+','+ey+')">'+headSVG('e',ek,true)+'</g>'+
+   '<line id="eFil" x1="'+ex+'" y1="0" x2="'+ex+'" y2="'+(ey+en(-.4))+'" stroke="#22c55e" stroke-width="'+en(1.75)+'" stroke-dasharray="'+en(3)+' '+en(1.2)+'" stroke-dashoffset="0"/>'+
+   pill('eNozT',ex+en(6.5),ey+en(1.6),8.5,'start',en(3.5-6.5),en(-3.5-1.6))+
+   '<line id="eMelt" x1="'+ex+'" y1="'+(ey+.5)+'" x2="'+ex+'" y2="'+(ey+8)+'" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" style="opacity:0"/>';
   $('#dimTop').textContent='X '+g.bx+' × Y '+g.by+' мм';$('#dimFront').textContent='X '+g.bx+' × Z '+g.bz+' мм';
   document.querySelectorAll('.ring').forEach(fixRing);drawModel();
   zTitles();renderE();syncArm();fitViews();renderPos()}
@@ -2302,8 +2422,8 @@ async function loadLimits(){toast('Читаю настройки платы (M50
 function fitViews(){
   try{const mq=window.matchMedia&&window.matchMedia('(min-width:1450px) and (min-height:640px)'),root=document.documentElement.style,gr=document.querySelector('.grid');
     if(!mq||!mq.matches){root.removeProperty&&root.removeProperty('--vw');if(gr&&gr.style)gr.style.gridTemplateRows='';return}
-    if(gr&&gr.style&&FR)gr.style.gridTemplateRows='minmax(0,232fr) minmax(0,'+FR.vbH+'fr)';
-    let w=1e9;[['#cTop',232],['#cFro',FR?FR.vbH:323]].forEach(([id,vh])=>{const e=document.querySelector(id+' .vwrap');if(!e)return;const r=e.getBoundingClientRect();w=Math.min(w,r.width-148,(r.height-4)*300/vh)});
+    if(gr&&gr.style&&FR)gr.style.gridTemplateRows='minmax(0,'+(TW?TW.vbH:232)+'fr) minmax(0,'+FR.vbH+'fr)';
+    let w=1e9;[['#cTop',TW?TW.vbH:232],['#cFro',FR?FR.vbH:323]].forEach(([id,vh])=>{const e=document.querySelector(id+' .vwrap');if(!e)return;const r=e.getBoundingClientRect();w=Math.min(w,r.width-148,(r.height-4)*300/vh)});
     if(w>40&&w<1e9)root.setProperty('--vw',Math.floor(w)+'px')}catch(_){}}
 window.addEventListener("resize",fitViews);setTimeout(fitViews,400);
 function frontDy(z){const g=GEOM;return g.z_bed?0:(FR.floor-FR.tip)-(Math.min(z,g.bz)/g.bz)*FR.T}
@@ -2315,14 +2435,15 @@ function updateTwin(s){
   if(fresh){LASTGOOD=Date.now();EVER=true;if(Date.now()>=HOLD)setPosTarget(cl(p.x,g.bx),cl(p.y,g.by),cl(p.z,g.bz))}
   setVeil(s,fresh);
   const x=TGTP?TGTP.x:0,pp=p||(TGTP?{x:TGTP.x,y:TGTP.y,z:TGTP.z}:null),bc=tcol(bt&&bt[0],110),nc=tcol(nt&&nt[0],260);
-  $('#tBed').style.fill=bc;$('#tNoz').style.fill=nc;$('#tBedT').textContent=bt?'стол '+tt(bt):'стол —';
+  $('#tBed').style.fill=bc;$('#tNoz').style.fill=nc;setPill('#tBedT',bt,bc);
   $('#tCoord').textContent=pp?'X '+pp.x.toFixed(1)+'  Y '+pp.y.toFixed(1):'нет данных';
   const fx=FR.l+(x/g.bx)*FR.bw;
   $('#fBed').style.fill=bc;$('#fBlock').style.fill=nc;$('#fNoz').style.fill=nc;
-  $('#fBedT').textContent=bt?tt(bt):'';$('#fNozT').textContent=nt?tt(nt):'';
-  const right=fx>FR.l+FR.bw*.7,ft=$('#fNozT');ft.setAttribute('x',right?-22:22);ft.setAttribute('text-anchor',right?'end':'start');
+  // у правого края подпись сопла — слева от блока, чтобы не уйти за раму
+  const right=fx>FR.l+FR.bw*.7,ft=$('#fNozT');ft.dataset.a=right?'end':'start';ft.setAttribute('transform','translate('+(right?-(8*FR.s+3):17*FR.s+3)+','+(FR.tip-8*FR.s)+')');
+  setPill('#fBedT',bt,bc);setPill('#fNozT',nt,nc);
   $('#fZ').textContent=pp?'Z '+pp.z.toFixed(2)+' мм':'Z —';
-  $('#eBlock').style.fill=nc;$('#eNoz').style.fill=nc;$('#eNozT').textContent=nt?tt(nt):'—';
+  $('#eBlock').style.fill=nc;$('#eNoz').style.fill=nc;setPill('#eNozT',nt,nc);
   $('#eMelt').style.opacity=nt?Math.max(0,Math.min(1,(nt[0]-150)/80)):0;
   const f=s.fan;$('#fanv').textContent=f==null?'—':f+'%';
   const bl=$('#eBlades');bl.style.animationPlayState=f>0?'running':'paused';bl.style.animationDuration=(f>0?(1.6-1.45*f/100):1)+'s';
@@ -2354,8 +2475,10 @@ function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').cl
 function setE(v){if(tgtE==null||Math.abs(v-visE)>60)visE=v;tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
 function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),25*dt);renderE();
   eRaf=Math.abs(tgtE-visE)>.005?requestAnimationFrame(animE):0}
-function renderE(){if($('#svgExt').classList.contains('printing')){$('#eE').textContent='E по G-code';return}const a=visE*20;$('#gDrive').setAttribute('transform','rotate('+a+' 62 72)');$('#gIdler').setAttribute('transform','rotate('+(-a*25/21)+' 118 72)');
-  $('#eFil').setAttribute('stroke-dashoffset',-(a*Math.PI/180*24));$('#eE').textContent='E '+visE.toFixed(1)+' мм'}
+function renderE(){if($('#svgExt').classList.contains('printing')){$('#eE').textContent='E по G-code';return}
+  const a=visE*HOB_DEG,rot=(id,d)=>{const e=$(id);if(e)e.setAttribute('transform','rotate('+d.toFixed(2)+')')};
+  rot('#eBig',a);rot('#eHob',a);rot('#eIdl',-a);rot('#ePin',-a*GEAR_K);
+  $('#eFil').setAttribute('stroke-dashoffset',(-visE*EK).toFixed(2));$('#eE').textContent='E '+visE.toFixed(1)+' мм'}
 // ---- управление кликом: клик по головке или столу включает режим, следующий клик по месту назначения запускает движение
 function syncArm(){if(!TW)return;$('#tRing').style.display=ARM==='xy'?'':'none';$('#fRingH').style.display=ARM==='x'?'':'none';$('#fRingB').style.display=ARM==='z'?'':'none';
   $('#svgTop').style.cursor=ARM==='xy'?'crosshair':'';$('#svgFront').style.cursor=ARM==='x'||ARM==='z'?'crosshair':'';$('#tHov').style.display='none';$('#fHov').style.display='none';
@@ -2363,7 +2486,7 @@ function syncArm(){if(!TW)return;$('#tRing').style.display=ARM==='xy'?'':'none';
   const fz=frontZone(),fe=$('#fZone');fe.style.display=fz?'':'none';
   if(fz){['x','y','width','height'].forEach((k,i)=>fe.setAttribute(k,fz[i]));}}
 // где можно кликнуть на виде спереди: по X — полоса хода головки, по Z — ход стола (или сопла, если по Z ездит головка)
-function frontZone(){if(ARM==='x'){const y=(CUR&&!GEOM.z_bed?frontDy(CUR.z):0)+10;return[FR.l-SNAP,y,FR.bw+2*SNAP,88]}
+function frontZone(){if(ARM==='x'){const h=HEAD.top*FR.s,y=(CUR&&!GEOM.z_bed?frontDy(CUR.z):0)+FR.tip-h-3;return[FR.l-SNAP,y,FR.bw+2*SNAP,h+5]}
   if(ARM==='z')return[FR.l-6,(GEOM.z_bed?FR.tip:FR.floor-FR.T)-SNAP,FR.bw+12,FR.T+2*SNAP];return null}
 // пунктир обводок: длина узора 5+3 должна укладываться в периметр целое число раз, иначе в углу, где узор начинается, — обрубок
 function fixRing(e){const w=+e.getAttribute('width'),h=+e.getAttribute('height'),r=+e.getAttribute('rx')||0,P=2*(w+h)-(8-2*Math.PI)*r;
@@ -2399,7 +2522,7 @@ function inEl(t,id){return !!(t&&t.closest&&t.closest(id))}
     const r=frontTarget(e);if(!r.ok){ARM=null;syncArm();return}goTo(ARM==='x'?{x:r.val}:{z:r.val})});
   T.addEventListener('pointermove',e=>{if(ARM!=='xy'||!TW)return;const r=topTarget(e),hv=$('#tHov');T.style.cursor=r.ok?'crosshair':'not-allowed';if(!r.ok){hv.style.display='none';return}
     hv.style.display='';const H=$('#tHovH'),V=$('#tHovV'),C=$('#tHovC');H.setAttribute('y1',r.q.y);H.setAttribute('y2',r.q.y);V.setAttribute('x1',r.q.x);V.setAttribute('x2',r.q.x);C.setAttribute('cx',r.q.x);C.setAttribute('cy',r.q.y);
-    hovLabel('#tHovR','#tHovT','X '+r.x.toFixed(0)+'   Y '+r.y.toFixed(0),r.q.x,r.q.y,2,298,2,230)});
+    hovLabel('#tHovR','#tHovT','X '+r.x.toFixed(0)+'   Y '+r.y.toFixed(0),r.q.x,r.q.y,2,298,2,TW.vbH-2)});
   F.addEventListener('pointermove',e=>{if((ARM!=='x'&&ARM!=='z')||!TW)return;const r=frontTarget(e),hv=$('#fHov');F.style.cursor=r.ok?'crosshair':'not-allowed';if(!r.ok){hv.style.display='none';return}
     const L=$('#fHovL'),C=$('#fHovC');hv.style.display='';C.setAttribute('cx',r.q.x);C.setAttribute('cy',r.q.y);
     if(ARM==='x'){const zn=frontZone();L.setAttribute('x1',r.q.x);L.setAttribute('x2',r.q.x);L.setAttribute('y1',zn[1]);L.setAttribute('y2',zn[1]+zn[3]);hovLabel('#fHovR','#fHovT','X '+r.val.toFixed(0),r.q.x,r.q.y,2,298,2,FR.vbH-2)}
