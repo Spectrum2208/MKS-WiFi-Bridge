@@ -1,0 +1,181 @@
+# MKS WiFi Bridge
+
+**Русский** · [English](#english)
+
+Мост между **OrcaSlicer** и 3D-принтерами с модулем **MKS-WIFI** (Flying Bear Ghost 4S и другие принтеры на платах MKS).
+Отправляйте печать прямо из слайсера по Wi-Fi и следите за ней в веб-панели — с компьютера или телефона.
+
+![Веб-панель во время печати](docs/panel.png)
+
+## Возможности
+
+- **Печать из Orca одной кнопкой.** Мост притворяется сервером OctoPrint: Orca отправляет файл как обычно, мост заливает его на карту принтера и, если нужно, запускает печать.
+- **Веб-панель с живой схемой принтера:** вид сверху и спереди, положение головы, текущий слой модели, температуры с графиком, прогресс, время до конца, обдув.
+- **Управление:** перемещение осей кликом по схеме, парковка, нагрев, подача прутка, обдув, файлы на карте, G-code консоль со справочником команд.
+- **Защита от ошибок:** во время печати опасные команды (движение, парковка, удаление файлов) заблокированы.
+- **Сам находит принтер в сети** и переподключается, если роутер выдал ему другой адрес.
+- **Доступ с телефона** по PIN-коду (включается в настройках).
+- **Без установки зависимостей:** готовый `.exe` или Python без дополнительных пакетов.
+
+## Установка
+
+### Вариант 1: готовая программа (Windows)
+
+1. Скачайте `MKSBridge.exe` из раздела [Releases](../../releases).
+2. Запустите. Windows может предупредить о неизвестном издателе («Windows защитила ваш компьютер») — нажмите «Подробнее» → «Выполнить в любом случае».
+3. Откроется панель `http://127.0.0.1:5000`, мост сам поищет принтер в сети. Значок моста появится в трее.
+
+### Вариант 2: из исходников
+
+Нужен Python 3.10 или новее (проверено на 3.13). Дополнительные пакеты не нужны.
+
+```
+git clone https://github.com/Spectrum2208/mks-wifi-bridge.git
+cd mks-wifi-bridge
+python run_bridge.py
+```
+
+Значок в трее появится, если установлены необязательные пакеты: `pip install pystray pillow`. Без них всё работает, просто без значка.
+
+## Настройка OrcaSlicer
+
+1. В Orca откройте настройки принтера → значок Wi-Fi рядом с именем принтера («Физический принтер»).
+2. **Тип хоста:** `Octo/Klipper`.
+3. **Адрес:** `http://127.0.0.1:5000`.
+4. **API-ключ:** любой непустой текст, например `mks`.
+5. Нажмите «Тест» — Orca должна подключиться.
+
+Теперь кнопка «Отправить» / «Печать» в Orca отправляет файл на принтер через мост. Вкладка «Принтер» (Device) в Orca показывает веб-панель.
+
+## Первый запуск
+
+- Мост сам ищет принтер в локальной сети. Если не нашёл — откройте настройки панели (значок справа вверху) и нажмите «Найти принтер» или впишите IP вручную.
+- В настройках задаются размеры стола, длина имени файла на экране принтера, автозапуск вместе с Windows и доступ с телефона.
+- Настройки и журнал лежат в `%APPDATA%\MKSBridge\`.
+
+### Параметры командной строки
+
+```
+MKSBridge.exe [--ip АДРЕС] [--port 5000] [--no-tray] [--no-browser]
+```
+
+`--ip` — адрес принтера, `--port` — порт панели. Указанные значения запоминаются в настройках.
+
+## На чём проверено
+
+Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, модуль MKS-WIFI. Другие принтеры с модулем MKS-WIFI должны работать — напишите в [Issues](../../issues), если у вас получилось или нет.
+
+Экран MKS TFT, когда печать запущена по Wi-Fi, сообщает о ней неверно (состояние, прогресс, температуры). Мост это учитывает: прогресс и слой берутся из ответов платы Marlin, прошедшее время считается самим мостом, температуры обновляются через автоотчёт платы (`M155`).
+
+## Известные ограничения
+
+- Пока модуль принимает файл, принтер не отвечает на команды: панель показывает «Загрузка файла» и ждёт.
+- Модуль MKS-WIFI держит одно соединение. Не открывайте одновременно другую программу, которая общается с принтером по Wi-Fi.
+- Для Orca состояние принтера всегда «готов», даже во время печати. За печатью следите в панели.
+- Размеры стола по умолчанию — от Ghost 4S (255 × 210 × 210 мм), поменяйте их в настройках под свой принтер.
+
+## Участие
+
+Сообщения об ошибках и идеи — в [Issues](../../issues). Пулл-реквесты приветствуются.
+Отправляя пулл-реквест, вы соглашаетесь, что автор проекта может распространять ваш вклад на условиях лицензии проекта,
+в том числе в рамках отдельного коммерческого разрешения.
+
+## Лицензия
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md). Пользоваться, изучать, изменять и делиться можно бесплатно в некоммерческих целях.
+Для коммерческого использования (продажа, включение в платный продукт или услугу) нужно разрешение автора — напишите через [Issues](../../issues).
+
+by Spectrum 2208
+
+---
+
+<a id="english"></a>
+
+# MKS WiFi Bridge
+
+[Русский](#mks-wifi-bridge) · **English**
+
+A bridge between **OrcaSlicer** and 3D printers with the **MKS-WIFI** module (Flying Bear Ghost 4S and other printers with MKS boards).
+Send prints straight from the slicer over Wi-Fi and watch them in a web dashboard — from your PC or phone.
+
+## Features
+
+- **One-click printing from Orca.** The bridge pretends to be an OctoPrint server: Orca sends the file as usual, the bridge uploads it to the printer's SD card and starts the print if asked.
+- **Web dashboard with a live printer diagram:** top and front views, head position, the current layer of the model, temperatures with a chart, progress, time left, part cooling fan.
+- **Control:** move axes by clicking the diagram, homing, heating, filament feed, fan, SD card files, a G-code console with a command reference.
+- **Safety:** dangerous commands (moves, homing, file deletion) are blocked while printing.
+- **Finds the printer on the network by itself** and reconnects if the router gives it a new address.
+- **Phone access** with a PIN code (enable it in the settings).
+- **No dependencies to install:** a ready-made `.exe`, or plain Python with no extra packages.
+
+## Installation
+
+### Option 1: ready-made program (Windows)
+
+1. Download `MKSBridge.exe` from [Releases](../../releases).
+2. Run it. Windows may warn about an unknown publisher ("Windows protected your PC") — click "More info" → "Run anyway".
+3. The dashboard opens at `http://127.0.0.1:5000` and the bridge searches for the printer on your network. The bridge icon appears in the system tray.
+
+### Option 2: from source
+
+Requires Python 3.10 or newer (tested on 3.13). No extra packages needed.
+
+```
+git clone https://github.com/Spectrum2208/mks-wifi-bridge.git
+cd mks-wifi-bridge
+python run_bridge.py
+```
+
+The tray icon appears if the optional packages are installed: `pip install pystray pillow`. Everything works without them, just without the icon.
+
+## OrcaSlicer setup
+
+1. In Orca, open the printer settings → the Wi-Fi icon next to the printer name ("Physical printer").
+2. **Host type:** `Octo/Klipper`.
+3. **Hostname/URL:** `http://127.0.0.1:5000`.
+4. **API key:** any non-empty text, e.g. `mks`.
+5. Click "Test" — Orca should connect.
+
+Now the "Send" / "Print" button in Orca sends the file to the printer through the bridge. Orca's "Device" tab shows the dashboard.
+
+## First run
+
+- The bridge searches for the printer on your local network. If it doesn't find it, open the dashboard settings (top-right icon) and click "Find printer" (Найти принтер), or enter the IP manually.
+- The settings hold the bed size, the file name length for the printer screen, autostart with Windows and phone access.
+- Settings and the log live in `%APPDATA%\MKSBridge\`.
+
+### Command-line options
+
+```
+MKSBridge.exe [--ip ADDRESS] [--port 5000] [--no-tray] [--no-browser]
+```
+
+`--ip` is the printer address, `--port` is the dashboard port. Values given here are saved to the settings.
+
+## Tested on
+
+Flying Bear Ghost 4S: Marlin 2.1.2 board, MKS TFT24 screen, MKS-WIFI module. Other printers with the MKS-WIFI module should work — please report in [Issues](../../issues) whether it works for you.
+
+When a print is started over Wi-Fi, the MKS TFT screen reports it incorrectly (state, progress, temperatures). The bridge accounts for this: progress and layer come from the Marlin board's replies, elapsed time is counted by the bridge, and temperatures are refreshed via the board's auto-report (`M155`).
+
+## Known limitations
+
+- While the module receives a file, the printer doesn't answer commands: the dashboard shows "Загрузка файла" (uploading) and waits.
+- The MKS-WIFI module keeps a single connection. Don't run another program that talks to the printer over Wi-Fi at the same time.
+- Orca always sees the printer as "ready", even while printing. Watch the print in the dashboard.
+- The default bed size is the Ghost 4S one (255 × 210 × 210 mm); change it in the settings for your printer.
+
+The interface is in Russian for now.
+
+## Contributing
+
+Bug reports and ideas go to [Issues](../../issues). Pull requests are welcome.
+By submitting a pull request you agree that the project author may distribute your contribution under the project license,
+including under a separate commercial permission.
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md). You may use, study, modify and share it for free for noncommercial purposes.
+Commercial use (selling it, including it in a paid product or service) requires the author's permission — get in touch via [Issues](../../issues).
+
+by Spectrum 2208
