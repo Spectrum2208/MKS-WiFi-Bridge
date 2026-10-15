@@ -30,10 +30,13 @@ MAX_BODY = 600 * 1024 * 1024
 # HTML/CSS/JS панели. Читаются при каждом запросе: правка панели не требует перезапуска моста
 WEB_DIR = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                        "mks_bridge", "web")
-STATIC = {"panel.css": "text/css", "panel.js": "application/javascript"}
+STATIC = {"panel.css": "text/css", "panel.js": "application/javascript", "icon.png": "image/png"}
 
 
 def web_file(name):
+    if name.endswith(".png"):
+        with open(os.path.join(WEB_DIR, name), "rb") as f:
+            return f.read()
     with open(os.path.join(WEB_DIR, name), encoding="utf-8") as f:
         return f.read()
 
@@ -51,7 +54,7 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json", extra=None):
         data = body if isinstance(body, bytes) else body.encode()
         self.send_response(code)
-        self.send_header("Content-Type", ctype + "; charset=utf-8")
+        self.send_header("Content-Type", ctype if ctype.startswith("image/") else ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         for k, v in (extra or {}).items():

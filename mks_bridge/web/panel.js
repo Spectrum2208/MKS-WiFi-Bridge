@@ -273,8 +273,13 @@ function headSVG(p,k,detail){
   if(detail){s+=C(V6.cart[0],V6.cart[1],1.6,'fill="#3a3f45"');
     s+=C(V6.therm[0],V6.therm[1],V6.therm[2],'fill="#2b2f33" style="stroke:var(--fg)" stroke-width=".6"');
     s+=R(11.6,B[1]-1.6,3.4,1.6,metal+' rx="'+n(.5)+'"')}   // головка винта зажима сверху
-  const wire=(dx,w)=>'<path d="M'+n(V6.cart[0]+dx)+' '+n(V6.cart[1])+' C'+n(V6.cart[0]+dx+.5)+' '+n(B[1]-4)+' '+n(15+dx)+' '+n(-26)+' '+n(16+dx)+' '+n(-44)+'" fill="none" stroke="#b91c1c" stroke-width="'+n(w)+'" stroke-linecap="round"/>';
-  s+=wire(-.8,detail?.9:.7);if(detail)s+=wire(.8,.9);   // провода картриджа — вверх, к плате головы
+  // два провода картриджа: из торца вверх, справа в обход рёбер радиатора (Ø22.3), и в низ корпуса экструдера,
+  // где на каретке стоит плата головы; корпус рисуется позже и закрывает их концы
+  const wire=(dx,w)=>{const xs=14+dx,P=(x,y)=>n(x)+' '+n(y);
+    return '<path d="M'+P(V6.cart[0]+dx,V6.cart[1])+' C'+P(V6.cart[0]+dx+1,-16)+' '+P(xs,B[1]+.5)+' '+P(xs,-22)+
+      ' L'+P(xs,-44)+' C'+P(xs,-47)+' '+P(12.4+dx*.6,-48)+' '+P(12.4+dx*.6,-50.5)+
+      '" fill="none" stroke="#b91c1c" stroke-width="'+n(w)+'" stroke-linecap="round" stroke-linejoin="round"/>'};
+  s+=wire(-.8,detail?.9:.7)+wire(.8,detail?.9:.7);
   // сопло V6: резьба в блоке (в разрезе), видимый зазор 0.5 мм, шестигранник 7×3, острый конус к кончику Ø1 — цвет по температуре целиком
   s+=cyl(V6.gap[0]+.5,V6.gap[1],6,'style="fill:var(--mut)"');
   s+='<g id="'+p+'Noz" fill="#64748b">'+(detail?cyl(B[1]+5,B[1]+B[3],6,'style="stroke:var(--fg)" stroke-width=".5"'):'')+

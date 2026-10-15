@@ -13,3 +13,8 @@ mks_bridge.py
 CLAUDE.md
 CLAUDE.local.md
 .claude/
+
+# Сборка exe (PyInstaller)
+build/
+dist/
+*.spec

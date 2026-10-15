@@ -1,5 +1,6 @@
 """Запуск моста: аргументы, сервер, фоновый опрос принтера, значок в трее."""
 import argparse
+import os
 import threading
 import time
 import webbrowser
@@ -9,7 +10,7 @@ from .api import ACTIVITY, APP
 from .config import CFG, NOTIFY, cfg_load, cfg_save, log
 from .discovery import discover
 from .printer import Printer, is_printing
-from .server import make_server
+from .server import WEB_DIR, make_server
 from .store import STATE, layers_load
 
 def sampler(printer):
@@ -46,11 +47,10 @@ def sampler(printer):
 def run_tray(url):
     try:
         import pystray
-        from PIL import Image, ImageDraw
+        from PIL import Image
+        img = Image.open(os.path.join(WEB_DIR, "icon.png"))
     except Exception:
         return False
-    img = Image.new("RGB", (64, 64), "#0e8f7a")
-    ImageDraw.Draw(img).rectangle((16, 16, 48, 48), outline="white", width=6)
     icon = pystray.Icon("mks_bridge", img, "MKS WiFi Bridge", pystray.Menu(
         pystray.MenuItem("Открыть панель", lambda icon, item: webbrowser.open(url), default=True),
         pystray.MenuItem("Выход", lambda icon, item: icon.stop())))
