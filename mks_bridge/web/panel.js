@@ -12,7 +12,7 @@ document.querySelectorAll('[data-i]').forEach(b=>b.innerHTML=ico(b.dataset.i,b.d
 function lsGet(k){try{return localStorage.getItem(k)}catch(_){return null}}function lsSet(k,v){try{localStorage.setItem(k,v)}catch(_){}}
 async function api(p,body){
   try{const r=await fetch(p,body===undefined?{cache:'no-store'}:{method:'POST',headers:HDR,body:JSON.stringify(body)});
-    if(r.status===401){location.reload();return{}}return await r.json()}catch(e){return{error:String(e)}}}
+    if(r.status===401){location.reload();return{}}return await r.json()}catch(e){return{error:String(e),bridge:false}}}
 // Окно подтверждения вместо системного confirm(). Возвращает true/false, а с choices — выбранный вариант или null.
 // У «красных» действий фокус на «Отмена»: случайный Enter ничего не сломает.
 function ask(title,text,ok,danger,choices){return new Promise(res=>{
@@ -42,8 +42,8 @@ const seen={};let HIST=[],NOW=0,RANGE=+(lsGet('mks_range')||900);
 async function tick(){
   if(document.hidden)return;
   const s=await api('/api/status?win='+RANGE);
-  $('#ip').textContent=s.ip||'не задан';
-  const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':(s.state||'—')+(s.stale?' …':'')):'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
+  if(s.bridge!==false)$('#ip').textContent=s.ip||'не задан';
+  const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':(s.state||'—')+(s.stale?' …':'')):s.bridge===false?'мост выключен':'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
   $('#nozzle').innerHTML=ttH(s.nozzle);$('#bed').innerHTML=ttH(s.bed);
   $('#prog').style.width=(s.progress||0)+'%';$('#progtxt').textContent=s.progress!=null?s.progress+'%':'—';
   $('#layer').textContent=s.layers?(s.layer_exact?'':'≈ ')+s.layer+' / '+s.layers:'—';
@@ -420,11 +420,12 @@ function animPos(t){const dt=Math.min(.1,(t-posT)/1000);posT=t;const c=CUR,g=TGT
 function setVeil(s,fresh){
   let msg=null,sub='';
   if(!EVER&&Date.now()-T0<5000){msg='Загрузка…'}
+  else if(s.bridge===false){msg='Мост не отвечает';sub='Программа MKS Bridge закрыта или не запущена. Запусти её снова — панель подключится сама.'}
   else if(s.online===false||(s.error&&!fresh)){msg='Нет связи с принтером';sub=(s.error?String(s.error).replace(/\.?\s*$/,'. '):'')+'Показано последнее известное положение.'}
   else if(!fresh&&homing()){msg='Принтер едет домой';sub='Во время парковки (G28) прошивка не отвечает на запросы — это нормально. Положение обновится, когда он закончит.'}
   else if(!fresh&&!CUR&&/PRINT|PAUSE/.test(s.state||'')){msg='Ждём координаты от принтера';sub='Пока принтер греется или паркуется, он не сообщает положение. Модель на столе появится сразу, как только он ответит.'}
   else if(!fresh&&Date.now()-LASTGOOD>25000&&!/PRINT|PAUSE/.test(s.state||'')){msg='Принтер долго не отвечает';sub='Возможно, он занят движением. Показано последнее известное положение.'}
-  const wait=msg==='Загрузка…'||msg==='Принтер едет домой'||msg==='Ждём координаты от принтера';
+  const wait=s.bridge===false||msg==='Загрузка…'||msg==='Принтер едет домой'||msg==='Ждём координаты от принтера';
   document.querySelectorAll('.veil').forEach(v=>{v.hidden=!msg;if(msg){v.children[0].textContent=msg;v.children[1].textContent=sub;v.children[2].style.display=wait?'none':''}})}
 // парковку отслеживает мост (s.homing); HOMING закрывает несколько секунд до первого ответа моста после нажатия
 function homing(){return !!LASTS.homing||(HOMING&&Date.now()-HOMING<4000)}

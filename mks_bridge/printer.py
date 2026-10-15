@@ -62,6 +62,8 @@ class Printer:
         self.fan = None          # последняя заданная скорость обдува, % (принтер её не сообщает)
         self.history = deque(maxlen=3000)
         self._tcp_lock = threading.Lock()
+        self._urgent = 0         # сколько команд пользователя ждут соединения: опрос уступает им место
+        self._urgent_lock = threading.Lock()
         self._status_lock = threading.Lock()
         self._cache = (0.0, None)
         self._gen = 0            # растёт после каждой команды, меняющей состояние: опрос, начатый раньше, уже устарел
@@ -74,7 +76,7 @@ class Printer:
         self.last_err = ""
 
     # --- TCP ---
-    def _connect(self):
+    def _connect(self, poll=False):
         """Модуль принтера держит одного клиента: при «отказе»/сбросе соединения пробуем ещё раз, а не считаем принтер пропавшим."""
         last = None
         for i in range(3):
@@ -82,15 +84,19 @@ class Printer:
                 return socket.create_connection((self.ip, self.tcp_port), timeout=4)
             except (ConnectionRefusedError, ConnectionResetError) as e:
                 last = e
+                if poll and self._urgent:
+                    break   # опрос не занимает очередь повторами, пока ждёт команда
                 time.sleep(0.6)
         raise last
 
-    def _cmd_once(self, commands, wait, until):
-        with self._connect() as s:
+    def _cmd_once(self, commands, wait, until, poll=False):
+        with self._connect(poll) as s:
             s.sendall("".join(c + "\r\n" for c in commands).encode())
-            s.settimeout(0.4)
+            s.settimeout(0.15 if poll else 0.4)   # опрос чаще проверяет, не ждёт ли команда
             buf, deadline = b"", time.time() + wait
             while time.time() < deadline:
+                if poll and self._urgent:
+                    break   # пользователь ждёт команду: опрос бросает ожидание, недостающее доберёт в следующий раз
                 try:
                     d = s.recv(4096)
                 except socket.timeout:
@@ -110,7 +116,12 @@ class Printer:
     def invalidate(self):
         self._cache = (0.0, self._cache[1])
 
-    def cmd(self, commands, wait=1.5, until=None, rediscover=True):
+    def _bump_urgent(self, d):
+        with self._urgent_lock:
+            self._urgent += d
+
+    def cmd(self, commands, wait=1.5, until=None, rediscover=True, poll=False):
+        """poll=True — фоновый опрос: уступает соединение командам пользователя."""
         changes = not all(c.split()[0].upper() in ("M105", "M997", "M27", "M992", "M994", "M114", "M20") for c in commands if c.split())
         if changes:
             self.invalidate()  # после команд движения/нагрева следующий статус должен быть свежим
@@ -119,20 +130,35 @@ class Printer:
             self.busy_until = time.time() + 25     # хоуминг: в это время принтер лучше не опрашивать
         elif any(t in ("G0", "G1") for t in toks):
             self.busy_until = time.time() + 4
-        with self._tcp_lock:
-            try:
-                r = self._cmd_once(commands, wait, until)
-            except OSError:
-                if not rediscover or not self.rediscover():
-                    raise
-                r = self._cmd_once(commands, wait, until)
-            if changes:
-                # Опрос, который держал соединение до нас, прочитал состояние ДО команды и сейчас положит его в кэш
-                # как свежее. Новое поколение не даст ему этого: см. status_cached.
-                self._gen += 1
-                self.invalidate()
+        t0, waiting = time.time(), not poll
+        if waiting:
+            self._bump_urgent(1)
+        try:
+            with self._tcp_lock:
+                if waiting:
+                    self._bump_urgent(-1)
+                    waiting = False
+                    if time.time() - t0 > 0.5:
+                        log("команда %s ждала соединения %.1f с" % (toks[0] if toks else "?", time.time() - t0))
+                try:
+                    r = self._cmd_once(commands, wait, until, poll)
+                except OSError:
+                    if not rediscover or not self.rediscover():
+                        raise
+                    r = self._cmd_once(commands, wait, until, poll)
+                self._after_cmd(changes)
+        finally:
+            if waiting:
+                self._bump_urgent(-1)
         self._recovered()
         return r
+
+    def _after_cmd(self, changes):
+        if changes:
+            # Опрос, который держал соединение до нас, прочитал состояние ДО команды и сейчас положит его в кэш
+            # как свежее. Новое поколение не даст ему этого: см. status_cached.
+            self._gen += 1
+            self.invalidate()
 
     def _recovered(self):
         if self.fails:
@@ -242,7 +268,7 @@ class Printer:
         # приходит уже в следующее соединение. Поэтому ждём, пока придут температура и координаты, а из пачки
         # берём последние (самые свежие) значения.
         printing = is_printing(cached)
-        text = self.cmd(cmds, wait=3.0 if printing else 1.5, until=("T:", "Count"), rediscover=not quiet)
+        text = self.cmd(cmds, wait=3.0 if printing else 1.5, until=("T:", "Count"), rediscover=not quiet, poll=quiet)
         last = lambda rx: (re.findall(rx, text) or [None])[-1]
         st = {"state": "unknown", "progress": None, "nozzle": None, "bed": None,
               "elapsed": None, "file": None, "pos": None, "sd": None, "left": None}
@@ -378,8 +404,9 @@ class Printer:
                     log("опрос принтера не удался (%d подряд): %s; следующая попытка через %d с" % (self.fails, e, self.fail_until - time.time()))
                 raise
             n, b = raw["nozzle"], raw["bed"]   # на график идут только реальные измерения
-            self.history.append((int(time.time()), n[0] if n else None, b[0] if b else None,
-                                 n[1] if n else None, b[1] if b else None))
+            if n or b:   # опрос, уступивший место команде, мог не дождаться температур: это не разрыв графика
+                self.history.append((int(time.time()), n[0] if n else None, b[0] if b else None,
+                                     n[1] if n else None, b[1] if b else None))
             st = self._merge(raw, self._cache[1])
             if self._gen != gen:   # пока мы спрашивали, ушла команда движения/нагрева: ответ уже не отражает принтер
                 st = dict(st, stale=True, pos_stale=True)

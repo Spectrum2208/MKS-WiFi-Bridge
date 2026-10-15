@@ -130,3 +130,6 @@ button.s.ib{display:inline-flex;align-items:center;gap:5px;text-transform:none;l
 .dbox p{margin:0;color:var(--mut);font-size:14px;line-height:1.45;word-break:break-word}.dbox p:empty{display:none}
 .dch{display:flex;flex-direction:column;gap:6px;margin-top:4px}.dch:empty{display:none}.dch button{text-align:left;font:600 14px ui-monospace,Consolas,monospace}
 .dbtn{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}button.dz{background:var(--bad);border-color:var(--bad);color:#fff}button.dz:hover{filter:brightness(1.1)}
+/* подпись автора: ник + фирменная звезда */
+.sig{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--mut);white-space:nowrap}
+.sig .star{height:1.25em;width:.625em;fill:#0e4b4f}
