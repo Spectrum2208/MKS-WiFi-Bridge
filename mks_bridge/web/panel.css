@@ -135,3 +135,6 @@ button.s.ib{display:inline-flex;align-items:center;gap:5px;text-transform:none;l
 .sig .star{height:1.25em;width:.625em;fill:#0e4b4f}
 /* системная настройка «уменьшить анимацию»: без плавных переходов */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+/* ссылка на проект в окне настроек */
+.gh{display:inline-grid;place-items:center;width:26px;height:26px;margin-left:6px;border-radius:7px;color:var(--mut)}
+.gh:hover,.gh:focus-visible{color:var(--fg);background:var(--bd)}.gh svg{width:16px;height:16px;fill:currentColor}

@@ -93,7 +93,7 @@ Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, моду
 [PolyForm Noncommercial 1.0.0](LICENSE.md). Пользоваться, изучать, изменять и делиться можно бесплатно в некоммерческих целях.
 Для коммерческого использования (продажа, включение в платный продукт или услугу) нужно разрешение автора — напишите через [Issues](../../issues).
 
-by Spectrum 2208
+by Spectrum2208
 
 ---
 
@@ -194,4 +194,4 @@ including under a separate commercial permission.
 [PolyForm Noncommercial 1.0.0](LICENSE.md). You may use, study, modify and share it for free for noncommercial purposes.
 Commercial use (selling it, including it in a paid product or service) requires the author's permission — get in touch via [Issues](../../issues).
 
-by Spectrum 2208
+by Spectrum2208
