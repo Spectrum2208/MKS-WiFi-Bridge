@@ -61,9 +61,17 @@ MKSBridge.exe [--ip АДРЕС] [--port 5000] [--no-tray] [--no-browser]
 
 `--ip` — адрес принтера, `--port` — порт панели. Указанные значения запоминаются в настройках.
 
+## Если что-то не работает
+
+- **Windows спрашивает про брандмауэр** при первом запуске. Разрешите доступ для частных сетей — тогда панель откроется и с телефона. Если отказать, с этого компьютера всё работает, а с телефона нет.
+- **Антивирус ругается на `MKSBridge.exe`.** Программы, собранные PyInstaller, иногда получают ложные срабатывания. Можно запустить мост из исходников (вариант 2) — это тот же код.
+- **Мост не находит принтер.** Принтер и компьютер должны быть в одной сети (не в гостевой). Если сеть устроена сложнее обычной домашней, впишите IP принтера вручную в настройках панели — его показывает экран принтера в разделе Wi-Fi.
+- **«Порт 5000 занят другой программой».** Запустите мост с другим портом (`--port 5001`) и укажите этот же порт в Orca.
+- **Панель пишет «Мост не отвечает».** Программа закрыта — запустите её снова, панель подключится сама.
+
 ## На чём проверено
 
-Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, модуль MKS-WIFI. Другие принтеры с модулем MKS-WIFI должны работать — напишите в [Issues](../../issues), если у вас получилось или нет.
+Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, модуль MKS-WIFI. Другие принтеры с модулем MKS-WIFI (Ghost 5, Ghost 4S со стоковой прошивкой и т.д.) должны работать, но пока не проверены. Если у вас такой — напишите в [Issues](../../issues), получилось или нет: это лучшая помощь проекту.
 
 Экран MKS TFT, когда печать запущена по Wi-Fi, сообщает о ней неверно (состояние, прогресс, температуры). Мост это учитывает: прогресс и слой берутся из ответов платы Marlin, прошедшее время считается самим мостом, температуры обновляются через автоотчёт платы (`M155`).
 
@@ -152,9 +160,17 @@ MKSBridge.exe [--ip ADDRESS] [--port 5000] [--no-tray] [--no-browser]
 
 `--ip` is the printer address, `--port` is the dashboard port. Values given here are saved to the settings.
 
+## Troubleshooting
+
+- **Windows asks about the firewall** on first run. Allow access on private networks so the dashboard also opens on your phone. If you deny it, everything still works on this PC, just not from the phone.
+- **Your antivirus flags `MKSBridge.exe`.** Programs built with PyInstaller sometimes get false positives. You can run the bridge from source instead (option 2) — it's the same code.
+- **The bridge can't find the printer.** The printer and the PC must be on the same network (not a guest network). If your network is more complex than a typical home one, enter the printer's IP manually in the dashboard settings — the printer screen shows it in its Wi-Fi menu.
+- **"Port 5000 is used by another program".** Start the bridge on another port (`--port 5001`) and use the same port in Orca.
+- **The dashboard says "Мост не отвечает" (bridge not responding).** The program is closed — start it again and the dashboard reconnects by itself.
+
 ## Tested on
 
-Flying Bear Ghost 4S: Marlin 2.1.2 board, MKS TFT24 screen, MKS-WIFI module. Other printers with the MKS-WIFI module should work — please report in [Issues](../../issues) whether it works for you.
+Flying Bear Ghost 4S: Marlin 2.1.2 board, MKS TFT24 screen, MKS-WIFI module. Other printers with the MKS-WIFI module (Ghost 5, Ghost 4S with stock firmware, etc.) should work but haven't been tested yet. If you have one, please report in [Issues](../../issues) whether it works — that's the best way to help the project.
 
 When a print is started over Wi-Fi, the MKS TFT screen reports it incorrectly (state, progress, temperatures). The bridge accounts for this: progress and layer come from the Marlin board's replies, elapsed time is counted by the bridge, and temperatures are refreshed via the board's auto-report (`M155`).
 

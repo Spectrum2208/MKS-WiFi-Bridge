@@ -1,6 +1,8 @@
 """Запуск моста: аргументы, сервер, фоновый опрос принтера, значок в трее."""
 import argparse
+import http.client
 import os
+import sys
 import threading
 import time
 import webbrowser
@@ -60,6 +62,27 @@ def run_tray(url):
     return True
 
 
+def bridge_running(port):
+    """На порту отвечает именно наш мост (а не чужая программа)?"""
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("GET", "/api/version", headers={"Host": "127.0.0.1"})
+        return b"MKS bridge" in conn.getresponse().read()
+    except (OSError, http.client.HTTPException):
+        return False
+
+
+def show_error(msg):
+    """Окно с ошибкой: у exe без консоли print никто не увидит."""
+    print(msg)
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, msg, "MKS WiFi Bridge", 0x10)
+        except Exception:
+            pass
+
+
 def main():
     ap = argparse.ArgumentParser(description="MKS WiFi Bridge v2")
     ap.add_argument("--ip", help="IP принтера (сохранится в настройках)")
@@ -96,8 +119,15 @@ def main():
     try:
         srv = make_server(printer, CFG["port"])
     except OSError:
-        print("Порт %d занят: возможно, мост уже запущен. Открываю панель." % CFG["port"])
-        webbrowser.open(url)
+        if bridge_running(CFG["port"]):
+            print("Мост уже запущен. Открываю панель.")
+            webbrowser.open(url)
+        else:
+            msg = ("Порт %d занят другой программой, мост не может запуститься.\n\n"
+                   "Запустите мост с другим портом, например: MKSBridge.exe --port 5001,\n"
+                   "и укажите этот порт в настройках принтера в Orca (http://127.0.0.1:5001)." % CFG["port"])
+            log(msg.replace("\n", " "))
+            show_error(msg)
         return
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     threading.Thread(target=sampler, args=(printer,), daemon=True).start()

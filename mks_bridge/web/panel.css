@@ -133,3 +133,5 @@ button.s.ib{display:inline-flex;align-items:center;gap:5px;text-transform:none;l
 /* подпись автора: ник + фирменная звезда */
 .sig{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--mut);white-space:nowrap}
 .sig .star{height:1.25em;width:.625em;fill:#0e4b4f}
+/* системная настройка «уменьшить анимацию»: без плавных переходов */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}

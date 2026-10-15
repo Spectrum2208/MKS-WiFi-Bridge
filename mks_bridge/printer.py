@@ -255,8 +255,10 @@ class Printer:
         names = []
         for line in text.splitlines():
             line = line.strip().lstrip("/")
-            if re.search(r"\.(gcode|gco|gc|g)$", line, re.I):
-                names.append(line)
+            # экран MKS TFT пишет только имя; Marlin после имени пишет размер в байтах («MODEL.GCO 123456»)
+            m = re.match(r"(.+?\.(?:gcode|gco|gc|g))(?:\s+\d+)?$", line, re.I)
+            if m:
+                names.append(m.group(1))
         return names
 
     def status(self, quiet=False):

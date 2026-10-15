@@ -9,11 +9,6 @@ __pycache__/
 # Старая версия моста
 mks_bridge.py
 
-# Файлы помощника (только локально)
-CLAUDE.md
-CLAUDE.local.md
-.claude/
-
 # Сборка exe (PyInstaller)
 build/
 dist/
