@@ -90,10 +90,17 @@ function drawChart(){
     tags.push({col,y:Y(p[k]),t:Math.round(p[k])+'°',tg:false});if(p[kt])tags.push({col,y:Y(p[kt]),t:Math.round(p[kt])+'°',tg:true})});
   // метки справа: «пилюля» с указателем на линию; факт — залитая, цель — той же формы с цветной рамкой
   x.font='bold 11px system-ui,sans-serif';
-  [false,true].forEach(tg=>{const col=tags.filter(t=>t.tg===tg).sort((a,b)=>a.y-b.y);for(let i=1;i<col.length;i++)if(col[i].y-col[i-1].y<20)col[i].y=col[i-1].y+20;
-    col.forEach(t=>{const y=Math.round(t.y),w=Math.ceil(x.measureText(t.t).width)+12,hh=17,x0=Math.round(L+pw+8+(tg?50:0)),r=5;
-      x.beginPath();x.moveTo(x0-5,y);x.lineTo(x0,y-4.5);x.arcTo(x0,y-hh/2,x0+w,y-hh/2,r);x.arcTo(x0+w,y-hh/2,x0+w,y+hh/2,r);
-      x.arcTo(x0+w,y+hh/2,x0,y+hh/2,r);x.arcTo(x0,y+hh/2,x0,y-hh/2,r);x.lineTo(x0,y+4.5);x.closePath();
+  // Близкие метки раздвигаются симметрично вокруг своих линий (группой, шаг 20 px), а хвостик метки смотрит
+  // на высоту своей линии — насколько позволяет высота метки
+  [false,true].forEach(tg=>{const col=tags.filter(t=>t.tg===tg).sort((a,b)=>a.y-b.y),G=20;
+    let gr=col.map(t=>({ts:[t],y0:t.y}));
+    for(let i=1;i<gr.length;i++){const a=gr[i-1],b=gr[i];if(b.y0-(a.y0+(a.ts.length-1)*G)<G){
+      a.ts=a.ts.concat(b.ts);a.y0=a.ts.reduce((s,t)=>s+t.y,0)/a.ts.length-(a.ts.length-1)*G/2;gr.splice(i,1);i=0}}
+    gr.forEach(g=>g.ts.forEach((t,i)=>t.py=g.y0+i*G));
+    col.forEach(t=>{const y=Math.round(t.py),w=Math.ceil(x.measureText(t.t).width)+12,hh=17,x0=Math.round(L+pw+8+(tg?50:0)),r=5,rl=3,
+        ty=Math.max(y-hh/2+1,Math.min(y+hh/2-1,Math.round(t.y))),bc=y+Math.max(-2,Math.min(2,ty-y));   // кончик хвостика и середина его основания
+      x.beginPath();x.moveTo(x0-5,ty);x.lineTo(x0,bc-3.5);x.arcTo(x0,y-hh/2,x0+w,y-hh/2,rl);x.arcTo(x0+w,y-hh/2,x0+w,y+hh/2,r);
+      x.arcTo(x0+w,y+hh/2,x0,y+hh/2,r);x.arcTo(x0,y+hh/2,x0,y-hh/2,rl);x.lineTo(x0,bc+3.5);x.closePath();
       if(tg){x.fillStyle=cd;x.fill();x.strokeStyle=t.col;x.lineWidth=1.5;x.stroke();x.fillStyle=t.col}else{x.fillStyle=t.col;x.fill();x.fillStyle='#fff'}
       x.textAlign='left';x.fillText(t.t,x0+6,y+4)})});
   x.font='11px system-ui,sans-serif';
@@ -359,8 +366,7 @@ function buildTwin(){
    // основание с ножками, винт Z с муфтой и мотором внизу
    '<rect x="'+(rl-8)+'" y="'+FR.bot+'" width="'+(rr-rl+16)+'" height="26" rx="6" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1.5"/><rect x="'+(rl-8)+'" y="'+FR.bot+'" width="'+(rr-rl+16)+'" height="7" rx="3" '+rod+' opacity=".45"/>'+
    '<rect x="'+(rl-2)+'" y="'+(FR.bot+26)+'" width="26" height="6" rx="2" '+rod+'/><rect x="'+(rr-24)+'" y="'+(FR.bot+26)+'" width="26" height="6" rx="2" '+rod+'/>'+
-   // стойки и верхняя балка рамы (на заднем плане, голова проходит перед ней)
-   '<rect x="'+(rl-5)+'" y="'+(B-5)+'" width="10" height="'+(FR.bot-B+5)+'" rx="3" style="fill:var(--bd)"/><rect x="'+(rr-5)+'" y="'+(B-5)+'" width="10" height="'+(FR.bot-B+5)+'" rx="3" style="fill:var(--bd)"/>'+
+   // верхняя балка рамы (на заднем плане, валы X и голова проходят перед ней)
    '<rect x="'+(rl-5)+'" y="'+(B-5)+'" width="'+(rr-rl+10)+'" height="10" rx="3" '+rod+' opacity=".7"/>'+
    '<rect x="'+(rx1-6*sc)+'" y="'+(B+5)+'" width="'+(12*sc)+'" height="'+(FR.bot-B-5)+'" style="fill:var(--mut)" opacity=".5"/><rect x="'+(rx2-6*sc)+'" y="'+(B+5)+'" width="'+(12*sc)+'" height="'+(FR.bot-B-5)+'" style="fill:var(--mut)" opacity=".5"/>'+
    '<rect x="'+(cx-4*sc)+'" y="'+(B+5)+'" width="'+(8*sc)+'" height="'+(FR.bot-25*sc-B-5)+'" fill="url(#zThread)" opacity=".55"/>'+
@@ -374,13 +380,15 @@ function buildTwin(){
     '<path id="fSilDone" style="fill:var(--fg);fill-opacity:.5"/></g>'+
    '<rect x="'+ox+'" y="-4" width="'+bw+'" height="24" '+HIT+'/><rect id="fRingB" x="'+(ox-3)+'" y="-4" width="'+(bw+6)+'" height="24" rx="4" '+RING+'/></g>'+
    // ось X: два вала на уровне балки, каретка с головой перед ними
-   '<g id="fGantry"><rect x="'+rl+'" y="'+(FR.tip+(HEAD.rodY-4)*hs)+'" width="'+(rr-rl)+'" height="'+(8*hs)+'" rx="'+(4*hs)+'" '+rod+'/>'+
+   '<g id="fGantry"><rect x="'+(rl-5)+'" y="'+(FR.tip+(HEAD.rodY-4)*hs)+'" width="'+(rr-rl+10)+'" height="'+(8*hs)+'" '+rod+'/>'+
    '<g id="fHead" style="cursor:pointer"><g transform="translate(0,'+FR.tip+')">'+
     '<rect x="'+(-27*hs)+'" y="'+(-67.6*hs)+'" width="'+(54*hs)+'" height="'+(18*hs)+'" rx="2" style="fill:var(--bd);stroke:var(--mut)" stroke-width=".8"/>'+
     headSVG('f',hs,false)+'</g>'+
    pill('fNozT',17*hs+3,FR.tip-8*hs,7,'start')+
    '<rect x="'+(HEAD.l*hs-2)+'" y="'+(FR.tip-ht-3)+'" width="'+((HEAD.r-HEAD.l)*hs+4)+'" height="'+(ht+5)+'" '+HIT+'/>'+
    '<rect id="fRingH" x="'+(HEAD.l*hs-4)+'" y="'+(FR.tip-ht-5)+'" width="'+((HEAD.r-HEAD.l)*hs+8)+'" height="'+(ht+9)+'" rx="6" '+RING+'/></g></g>'+
+   // боковые стенки рамы — впереди валов X: концы валов уходят в них
+   '<g style="pointer-events:none">'+'<rect x="'+(rl-5)+'" y="'+(B-5)+'" width="10" height="'+(FR.bot-B+5)+'" rx="3" style="fill:var(--bd)"/><rect x="'+(rr-5)+'" y="'+(B-5)+'" width="10" height="'+(FR.bot-B+5)+'" rx="3" style="fill:var(--bd)"/>'+'</g>'+
    '<g id="fHov" style="display:none;pointer-events:none"><line id="fHovL" style="stroke:var(--acc)" stroke-width="1.5" stroke-dasharray="4 3"/><circle id="fHovC" r="3.5" style="fill:var(--acc)"/><rect id="fHovR" rx="3" height="15" style="fill:var(--card);fill-opacity:.94;stroke:var(--acc)" stroke-width="1"/><text id="fHovT" font-size="10" style="fill:var(--fg);font-weight:700"></text></g>';
   // карточка экструдера: та же голова крупно, в разрезе; рамка рисунка — точно по габариту головы (−26…34 × −124…+5 мм)
   const ek=EK,ex=26*ek+2,ey=124*ek+2,en=v=>+(v*ek).toFixed(2);
