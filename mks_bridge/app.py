@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import webbrowser
 
 from . import VERSION
@@ -83,7 +84,17 @@ def show_error(msg):
             pass
 
 
+def log_crashes():
+    """Без консоли (ярлык, exe) неожиданная ошибка пропала бы бесследно — пишем её в журнал."""
+    def on_error(kind, tb):
+        log("НЕОЖИДАННАЯ ОШИБКА (%s):\n%s" % (kind, "".join(tb)))
+    sys.excepthook = lambda t, v, b: on_error("основной поток", traceback.format_exception(t, v, b))
+    threading.excepthook = lambda a: on_error("поток %s" % (a.thread.name if a.thread else "?"),
+                                              traceback.format_exception(a.exc_type, a.exc_value, a.exc_traceback))
+
+
 def main():
+    log_crashes()
     ap = argparse.ArgumentParser(description="MKS WiFi Bridge v2")
     ap.add_argument("--ip", help="IP принтера (сохранится в настройках)")
     ap.add_argument("--port", type=int, help="порт панели (по умолчанию 5000)")
