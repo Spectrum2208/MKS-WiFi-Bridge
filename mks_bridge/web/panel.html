@@ -87,6 +87,9 @@
  <div class="sremote" id="remote" hidden></div>
  <div class="srow" id="autorow"><div class="sl"><b>Запускать вместе с Windows</b><span>Мост стартует в фоне при входе в систему</span></div>
   <label class="sw"><input type="checkbox" id="sauto" onchange="saveAuto()"><i></i></label></div>
+ <div class="rg">Если что-то не работает</div>
+ <div class="srow"><div class="sl"><b>Журнал работы</b><span>Приложите его к сообщению об ошибке на GitHub</span></div>
+  <button class="sm" onclick="location.href='/api/log'">Скачать</button><button class="sm" id="logdir" onclick="openLogDir()" hidden>Открыть папку</button></div>
  <div class="sft"><button class="bt d" onclick="quitApp()"><span data-i="power"></span>Выход из программы</button></div></div></div>
 <div id="toast" class="toast"></div>
 <div id="dlg" class="ov"><div class="card dbox" role="alertdialog" aria-modal="true" aria-labelledby="dlgT" aria-describedby="dlgX">

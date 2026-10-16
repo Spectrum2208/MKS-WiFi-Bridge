@@ -69,6 +69,13 @@ MKSBridge.exe [--ip АДРЕС] [--port 5000] [--no-tray] [--no-browser]
 - **«Порт 5000 занят другой программой».** Запустите мост с другим портом (`--port 5001`) и укажите этот же порт в Orca.
 - **Панель пишет «Мост не отвечает».** Программа закрыта — запустите её снова, панель подключится сама.
 
+## Как сообщить об ошибке
+
+1. Откройте настройки панели → раздел «Если что-то не работает» → **«Скачать»** журнал
+   (или «Открыть папку» — журнал лежит в `%APPDATA%\MKSBridge\mks_bridge.log`).
+2. Создайте сообщение в [Issues](../../issues): что делали, что ожидали, что получилось, модель принтера.
+3. Приложите файл журнала. В нём нет паролей и PIN-кода — только работа моста, ответы принтера и названия файлов.
+
 ## На чём проверено
 
 Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, модуль MKS-WIFI. Другие принтеры с модулем MKS-WIFI (Ghost 5, Ghost 4S со стоковой прошивкой и т.д.) должны работать, но пока не проверены. Если у вас такой — напишите в [Issues](../../issues), получилось или нет: это лучшая помощь проекту.
@@ -167,6 +174,13 @@ MKSBridge.exe [--ip ADDRESS] [--port 5000] [--no-tray] [--no-browser]
 - **The bridge can't find the printer.** The printer and the PC must be on the same network (not a guest network). If your network is more complex than a typical home one, enter the printer's IP manually in the dashboard settings — the printer screen shows it in its Wi-Fi menu.
 - **"Port 5000 is used by another program".** Start the bridge on another port (`--port 5001`) and use the same port in Orca.
 - **The dashboard says "Мост не отвечает" (bridge not responding).** The program is closed — start it again and the dashboard reconnects by itself.
+
+## Reporting a problem
+
+1. Open the dashboard settings → the "Если что-то не работает" (troubleshooting) section → **"Скачать"** (download) the log
+   (or "Открыть папку" to open its folder — the log is `%APPDATA%\MKSBridge\mks_bridge.log`).
+2. Open an [issue](../../issues): what you did, what you expected, what happened, and your printer model.
+3. Attach the log file. It contains no passwords or PIN — only what the bridge did, the printer's replies and file names.
 
 ## Tested on
 

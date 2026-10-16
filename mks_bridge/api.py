@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import VERSION
 from .autostart import autostart_get, autostart_set
-from .config import CFG, cfg_save, log
+from .config import CFG, CFG_DIR, LOG_PATH, cfg_save, log
 from .discovery import discover, local_ip
 from .jobs import JOBS, Job, run_job
 from .printer import is_printing, sanitize_name
@@ -87,7 +87,26 @@ class PanelApi:
                 "background_poll": CFG.get("background_poll", True),
                 "geom": {"bx": CFG["bed_x"], "by": CFG["bed_y"], "bz": CFG["bed_z"], "z_bed": CFG["z_bed"]}, "remote": CFG["remote"], "pin": CFG["pin"] if self._local() else "",
                 "urls": urls, "autostart": autostart_get(), "version": VERSION, "limits": self.printer.limits or {},
-                "can_autostart": sys.platform == "win32"}
+                "can_autostart": sys.platform == "win32", "local": self._local()}
+
+    def _log_download(self):
+        """Журнал целиком (с предыдущей частью) — чтобы приложить к сообщению об ошибке."""
+        parts = []
+        for path in (LOG_PATH + ".1", LOG_PATH):
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    parts.append(f.read())
+            except OSError:
+                pass
+        self._send(200, "".join(parts) or "журнал пуст\n", "text/plain",
+                   {"Content-Disposition": 'attachment; filename="mks_bridge_log.txt"'})
+
+    def _open_logdir(self):
+        if not self._local() or sys.platform != "win32":
+            self._json(403, {"error": "только с этого компьютера"})
+            return
+        os.startfile(CFG_DIR)
+        self._json(200, {"ok": True})
 
     def _list(self):
         if self._guard_printer():

@@ -38,7 +38,7 @@ def cfg_save():
 def log(msg):
     try:
         if os.path.exists(LOG_PATH) and os.path.getsize(LOG_PATH) > 1_000_000:
-            os.remove(LOG_PATH)
+            os.replace(LOG_PATH, LOG_PATH + ".1")   # предыдущая часть журнала остаётся рядом
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write("[%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
     except OSError:

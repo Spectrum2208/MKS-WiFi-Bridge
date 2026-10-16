@@ -118,11 +118,12 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
     # --- маршруты ---
     GET = {"/api/version": "_octo_version", "/api/server": "_octo_version", "/api/printer": "_octo_printer",
            "/api/files": "_octo_files", "/api/status": "_get_status", "/api/list": "_list",
-           "/api/settings": "_get_settings", "/api/outline": "_outline", "/api/limits": "_limits"}
+           "/api/settings": "_get_settings", "/api/outline": "_outline", "/api/limits": "_limits",
+           "/api/log": "_log_download"}
     POST = {"/api/upload": "_panel_upload", "/api/delete": "_delete", "/api/print": "_print", "/api/move": "_move",
             "/api/goto": "_goto", "/api/extrude": "_extrude", "/api/fan": "_fan", "/api/console": "_console",
             "/api/settings": "_save_settings", "/api/reconnect": "_reconnect", "/api/discover": "_discover",
-            "/api/quit": "_quit"}
+            "/api/quit": "_quit", "/api/logdir": "_open_logdir"}
 
     def do_GET(self):
         p = self.path.split("?")[0]

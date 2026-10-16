@@ -569,10 +569,11 @@ async function coolAll(){if(printing()&&!await ask(...SPOIL))return;
   log('нагрев сопла и стола выключен');toast('Нагрев выключен');tick()}
 // ---- настройки
 function openSet(){$('#ov').classList.add('on');loadSettings()}function closeSet(){$('#ov').classList.remove('on')}
+async function openLogDir(){const r=await api('/api/logdir',{});if(r.error)toast(r.error)}
 async function loadSettings(){
   const s=await api('/api/settings');if(s.error){toast(s.error);return}
   $('#sip').value=s.printer_ip||'';$('#sow').checked=!!s.overwrite;$('#sbg').checked=!!s.background_poll;$('#smax').value=s.max_name;
-  $('#srem').checked=!!s.remote;$('#sauto').checked=!!s.autostart;$('#autorow').style.display=s.can_autostart?'':'none';$('#ver').textContent='v'+s.version;
+  $('#srem').checked=!!s.remote;$('#sauto').checked=!!s.autostart;$('#autorow').style.display=s.can_autostart?'':'none';$('#ver').textContent='v'+s.version;$('#logdir').hidden=!(s.local&&s.can_autostart);
   if(s.geom){GEOM=s.geom;$('#gbx').value=GEOM.bx;$('#gby').value=GEOM.by;$('#gbz').value=GEOM.bz;$('#gzb').checked=!!GEOM.z_bed;buildTwin();updateTwin(LASTS)}
   showLimits(s.limits&&s.limits.vmax);
   const rm=$('#remote');rm.hidden=!s.remote;rm.textContent='';

@@ -2,6 +2,7 @@
 import argparse
 import http.client
 import os
+import platform
 import sys
 import threading
 import time
@@ -27,6 +28,8 @@ def sampler(printer):
                 try:
                     st = printer.status_cached(max_age=0, quiet=True, allow_stale=True)
                     fails, delay = 0, (4 if active else 10)
+                    if not printer.described:
+                        printer.describe()
                     if is_printing(st) and not printer._autoreport and not printer.homing:
                         printer.enable_autoreport()   # печать идёт (мост перезапущен посреди неё или её запустили не мы)
                     elif not is_printing(st):
@@ -116,6 +119,10 @@ def main():
     if a.http_port:
         CFG["http_port"] = a.http_port
     first_run = not CFG["printer_ip"]
+    log("запуск MKS WiFi Bridge %s | %s | Python %s | %s | панель на порту %d | принтер %s (TCP %d, HTTP %d)"
+        % (VERSION, platform.platform(), platform.python_version(),
+           "exe" if getattr(sys, "frozen", False) else "из исходников", CFG["port"],
+           CFG["printer_ip"] or "не задан", CFG["tcp_port"], CFG["http_port"]))
     cfg_save()
 
     printer = Printer(CFG["printer_ip"], CFG["http_port"], CFG["tcp_port"], CFG["max_name"])

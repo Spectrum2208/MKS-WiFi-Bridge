@@ -69,6 +69,8 @@ class Printer:
         self._gen = 0            # растёт после каждой команды, меняющей состояние: опрос, начатый раньше, уже устарел
         self._last_scan = 0.0
         self.last_raw = ""
+        self.last_status_raw = ""   # сырой ответ на последний опрос состояния (для журнала)
+        self.described = False      # что принтер сообщает о себе, уже записано в журнал
         self.limits = CFG.get("limits")   # максимальные скорости из прошивки (M203), мм/с; читаются только по кнопке и запоминаются
         self.fails = 0           # подряд неудачных опросов
         self.fail_until = 0.0    # до этого момента принтер не дёргаем (пауза после сбоя)
@@ -249,6 +251,16 @@ class Printer:
         s.sendall(b"M112\r\n")
         return True
 
+    def describe(self):
+        """Один раз за запуск: прошивка (M115) и пример ответа на опрос — по ним видно, чем чужой принтер
+        отличается от проверенного (другой экран, другая прошивка)."""
+        self.described = True
+        log("ответ принтера на опрос состояния: %r" % self.last_status_raw[:500])
+        try:
+            log("прошивка (M115): %r" % self.cmd(["M115"], wait=2.5, until="FIRMWARE_NAME", poll=True)[:400])
+        except OSError as e:
+            log("M115 не получен: %s" % e)
+
     def files(self):
         text = self.cmd(["M20"], wait=2.5, until="End file list")
         self.last_raw = text
@@ -271,6 +283,7 @@ class Printer:
         # берём последние (самые свежие) значения.
         printing = is_printing(cached)
         text = self.cmd(cmds, wait=3.0 if printing else 1.5, until=("T:", "Count"), rediscover=not quiet, poll=quiet)
+        self.last_status_raw = text
         last = lambda rx: (re.findall(rx, text) or [None])[-1]
         st = {"state": "unknown", "progress": None, "nozzle": None, "bed": None,
               "elapsed": None, "file": None, "pos": None, "sd": None, "left": None}
