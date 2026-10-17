@@ -28,8 +28,24 @@ def local_ips():
     return out
 
 
-def local_ip():
-    ips = local_ips()
+def lan_ips(hint_ip=""):
+    """Адреса компьютера для телефона в той же сети: сначала из подсети принтера, потом обычные домашние,
+    в конце остальные (туннели VPN). Основной маршрут в интернет часто идёт через VPN — его адрес телефону не подходит."""
+    near = hint_ip.rsplit(".", 1)[0] + "." if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", hint_ip or "") else None
+
+    def rank(ip):
+        if near and ip.startswith(near):
+            return 0
+        if ip.startswith("192.168."):
+            return 1
+        if ip.startswith("10.") or re.match(r"172\.(1[6-9]|2\d|3[01])\.", ip):
+            return 2
+        return 3
+    return sorted(local_ips(), key=rank)
+
+
+def local_ip(hint_ip=""):
+    ips = lan_ips(hint_ip)
     return ips[0] if ips else "127.0.0.1"
 
 

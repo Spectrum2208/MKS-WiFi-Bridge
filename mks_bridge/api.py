@@ -82,7 +82,8 @@ class PanelApi:
 
     def _settings(self):
         port = CFG["port"]
-        urls = ["http://%s:%d" % (socket.gethostname(), port), "http://%s:%d" % (local_ip(), port)]
+        # адрес в сети принтера — первым: по имени компьютера телефоны часто не находят
+        urls = ["http://%s:%d" % (local_ip(self.printer.ip), port), "http://%s:%d" % (socket.gethostname(), port)]
         return {"printer_ip": self.printer.ip, "max_name": CFG["max_name"], "overwrite": CFG["overwrite"],
                 "background_poll": CFG.get("background_poll", True),
                 "geom": {"bx": CFG["bed_x"], "by": CFG["bed_y"], "bz": CFG["bed_z"], "z_bed": CFG["z_bed"]}, "remote": CFG["remote"], "pin": CFG["pin"] if self._local() else "",
