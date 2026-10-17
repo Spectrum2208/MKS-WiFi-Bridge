@@ -7,6 +7,13 @@
 
 ![Веб-панель во время печати](docs/panel.png)
 
+## Как я докатился до жизни такой
+
+Я хотел, чтобы мой Ghost 4S принимал задания из Orca по Wi-Fi. Нашёл только [скрипт пост-обработки для PrusaSlicer](https://github.com/ArtificalSUN/MKS-WIFI_PS_uploader)
+четырёхлетней давности — спасибо его автору, с него всё началось. Решил сделать своё, под Orca и поудобнее…
+и *немножко* увлёкся: сверху появились веб-панель, живая схема принтера, модель печати, график температур
+и голова, нарисованная по чертежам E3D.
+
 ## Возможности
 
 - **Печать из Orca одной кнопкой.** Мост притворяется сервером OctoPrint: Orca отправляет файл как обычно, мост заливает его на карту принтера и, если нужно, запускает печать.
@@ -95,6 +102,11 @@ Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, моду
 Отправляя пулл-реквест, вы соглашаетесь, что автор проекта может распространять ваш вклад на условиях лицензии проекта,
 в том числе в рамках отдельного коммерческого разрешения.
 
+## Поддержать проект
+
+Если мост вам пригодился и хочется сказать спасибо монетой — [страница поддержки на CloudTips](https://pay.cloudtips.ru/p/865e681a).
+Это добровольно: мост был и останется бесплатным. А звёздочка на GitHub и сообщение «работает на моём принтере» тоже очень радуют.
+
 ## Лицензия
 
 [PolyForm Noncommercial 1.0.0](LICENSE.md). Пользоваться, изучать, изменять и делиться можно бесплатно в некоммерческих целях.
@@ -112,6 +124,13 @@ by Spectrum2208
 
 A bridge between **OrcaSlicer** and 3D printers with the **MKS-WIFI** module (Flying Bear Ghost 4S and other printers with MKS boards).
 Send prints straight from the slicer over Wi-Fi and watch them in a web dashboard — from your PC or phone.
+
+## How I ended up here
+
+I wanted my Ghost 4S to take jobs from Orca over Wi-Fi. All I found was a four-year-old [post-processing script for PrusaSlicer](https://github.com/ArtificalSUN/MKS-WIFI_PS_uploader)
+— thanks to its author, that's where it all started. I decided to build my own, for Orca and a bit nicer…
+and got *slightly* carried away: on top came a web dashboard, a live printer diagram, the print model, a temperature chart
+and a print head drawn from E3D's technical drawings.
 
 ## Features
 
@@ -202,6 +221,11 @@ The interface is in Russian for now.
 Bug reports and ideas go to [Issues](../../issues). Pull requests are welcome.
 By submitting a pull request you agree that the project author may distribute your contribution under the project license,
 including under a separate commercial permission.
+
+## Support the project
+
+If the bridge helped you and you'd like to say thanks with a coin — [support page on CloudTips](https://pay.cloudtips.ru/p/865e681a).
+It's entirely optional: the bridge is and will stay free. A star on GitHub or a "works on my printer" note makes my day too.
 
 ## License
 
