@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import re
+import socketserver
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +17,12 @@ from .octoprint import OctoPrintApi
 
 class QuietServer(ThreadingHTTPServer):
     """Браузер часто обрывает соединение (закрыли вкладку, обновили страницу): это не ошибка, трассировку не печатаем."""
+    def server_bind(self):
+        # Стандартный HTTPServer здесь спрашивает у DNS полное имя компьютера (getfqdn). Через VPN или при медленном DNS
+        # это висит десятки секунд, и мост не стартует. Имя серверу не нужно — только открываем порт.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
     def handle_error(self, request, client_address):
         if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError, BrokenPipeError)):
             return

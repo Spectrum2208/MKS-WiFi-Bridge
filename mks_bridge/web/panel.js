@@ -140,7 +140,7 @@ function sendFiles(fl){[...fl].forEach(f=>{
 async function loadFiles(){
   const box=$('#files');box.textContent='Загрузка…';const r=await api('/api/list');if(r.error){box.textContent=r.error;return}
   box.textContent='';if(!r.files.length){box.textContent=r.cached?'Во время печати принтер не отдаёт список файлов. Он появится после печати.':'Файлов нет';return}
-  if(r.cached){const n=document.createElement('div');n.className='mut sm';n.textContent='Во время печати принтер не отдаёт список: показан последний известный.';box.appendChild(n)}
+  if(r.cached||r.partial){const n=document.createElement('div');n.className='mut sm';n.textContent=r.partial?'Принтер прислал список не целиком — нажми «Обновить».':'Во время печати принтер не отдаёт список: показан последний известный.';box.appendChild(n)}
   r.files.forEach(n=>{const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.value=n;l.appendChild(c);l.appendChild(document.createTextNode(n));box.appendChild(l)})}
 const sel=()=>[...document.querySelectorAll('#files input:checked')].map(c=>c.value);
 async function delSel(){const n=sel();if(!n.length){toast('Отметь файлы для удаления');return}

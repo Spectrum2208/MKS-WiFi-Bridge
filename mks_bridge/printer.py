@@ -69,6 +69,7 @@ class Printer:
         self._gen = 0            # растёт после каждой команды, меняющей состояние: опрос, начатый раньше, уже устарел
         self._last_scan = 0.0
         self.last_raw = ""
+        self.files_complete = True  # последний список файлов пришёл целиком
         self.last_status_raw = ""   # сырой ответ на последний опрос состояния (для журнала)
         self.described = False      # что принтер сообщает о себе, уже записано в журнал
         self.limits = CFG.get("limits")   # максимальные скорости из прошивки (M203), мм/с; читаются только по кнопке и запоминаются
@@ -102,8 +103,8 @@ class Printer:
                 try:
                     d = s.recv(4096)
                 except socket.timeout:
-                    if buf and not isinstance(until, tuple):
-                        break
+                    if buf and not until:
+                        break   # конец ответа неизвестен: пауза — значит, принтер договорил
                     continue
                 if not d:
                     break
@@ -262,8 +263,15 @@ class Printer:
             log("M115 не получен: %s" % e)
 
     def files(self):
-        text = self.cmd(["M20"], wait=2.5, until="End file list")
+        """Список G-code на карте. self.files_complete — пришёл ли список целиком (до «End file list»):
+        по Wi-Fi большой список идёт с паузами, обрезанный нельзя считать правдой о карте."""
+        for attempt in (1, 2):
+            text = self.cmd(["M20"], wait=10, until="End file list")
+            if "end file list" in text.lower():
+                break
+            log("список файлов пришёл не целиком (попытка %d), %d байт" % (attempt, len(text)))
         self.last_raw = text
+        self.files_complete = "end file list" in text.lower()
         names = []
         for line in text.splitlines():
             line = line.strip().lstrip("/")

@@ -114,6 +114,9 @@ class PanelApi:
             try:
                 lst = self.printer.files()
                 busy = is_printing(self.printer._cache[1] or {})
+                if lst and not self.printer.files_complete:
+                    self._json(200, {"files": lst, "partial": True})
+                    return
                 if lst:
                     if lst != CFG.get("files_seen"):
                         CFG["files_seen"] = lst   # в настройках: перезапуск моста посреди печати не теряет список
