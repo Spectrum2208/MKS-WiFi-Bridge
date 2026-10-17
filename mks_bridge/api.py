@@ -54,7 +54,7 @@ class PanelApi:
                 if st.get("left") is not None:   # оставшееся время от слайсера (M73) точнее нашей оценки
                     out["eta"] = st["left"]
                 t0 = CFG.get("print_started") or 0
-                if not st.get("elapsed") and 0 < time.time() - t0 < 7 * 86400:   # экран MKS тут тоже отвечает нулём
+                if not st.get("elapsed") and 0 < time.time() - t0 < 7 * 86400:   # модуль Wi-Fi тут тоже отвечает нулём
                     out["elapsed"] = int(time.time() - t0)
                 k = job_key(st.get("file"))
                 if k and os.path.exists(os.path.join(OUTL_DIR, k + ".json")):

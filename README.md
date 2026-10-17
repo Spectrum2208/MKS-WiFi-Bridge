@@ -85,13 +85,15 @@ MKSBridge.exe [--ip АДРЕС] [--port 5000] [--no-tray] [--no-browser]
 
 ## На чём проверено
 
-Flying Bear Ghost 4S: плата с Marlin 2.1.2, экран MKS TFT24, модуль MKS-WIFI. Другие принтеры с модулем MKS-WIFI (Ghost 5, Ghost 4S со стоковой прошивкой и т.д.) должны работать, но пока не проверены. Если у вас такой — напишите в [Issues](../../issues), получилось или нет: это лучшая помощь проекту.
+Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Sergey1560/Marlin_FB4S) (ветка `FB4S_WIFI`, Marlin 2.1.2) и модулем MKS-WIFI. Эту прошивку ставят многие владельцы Ghost 4S и 5 — если у вас она же, мост, скорее всего, заработает сразу. Другие принтеры с модулем MKS-WIFI (Ghost 5, Ghost 4S со стоковой прошивкой и т.д.) должны работать, но пока не проверены. Если у вас такой — напишите в [Issues](../../issues), получилось или нет: это лучшая помощь проекту.
 
-Экран MKS TFT, когда печать запущена по Wi-Fi, сообщает о ней неверно (состояние, прогресс, температуры). Мост это учитывает: прогресс и слой берутся из ответов платы Marlin, прошедшее время считается самим мостом, температуры обновляются через автоотчёт платы (`M155`).
+Во время печати, запущенной по Wi-Fi, модуль MKS-WIFI отвечает на служебные запросы о состоянии из своей памяти, и эти ответы устаревают: «принтер свободен» при идущей печати, нулевой прогресс, застывшие температуры. Мост это учитывает: прогресс и слой берутся из ответов самого Marlin (`SD printing byte`), прошедшее время считается мостом, температуры обновляются через автоотчёт платы (`M155`).
 
 ## Известные ограничения
 
 - Пока модуль принимает файл, принтер не отвечает на команды: панель показывает «Загрузка файла» и ждёт.
+- Во время загрузки файла прошивка сама выключает нагрев и включает вентилятор хотэнда на полную, а после загрузки возвращает температуры. Это нормально, так устроена прошивка.
+- Русские буквы в именах файлов прошивка не понимает, поэтому мост переводит имена в латиницу и укорачивает длинные — исходное имя видно в панели.
 - Модуль MKS-WIFI держит одно соединение. Не открывайте одновременно другую программу, которая общается с принтером по Wi-Fi.
 - Для Orca состояние принтера всегда «готов», даже во время печати. За печатью следите в панели.
 - Размеры стола по умолчанию — от Ghost 4S (255 × 210 × 210 мм), поменяйте их в настройках под свой принтер.
@@ -203,13 +205,15 @@ MKSBridge.exe [--ip ADDRESS] [--port 5000] [--no-tray] [--no-browser]
 
 ## Tested on
 
-Flying Bear Ghost 4S: Marlin 2.1.2 board, MKS TFT24 screen, MKS-WIFI module. Other printers with the MKS-WIFI module (Ghost 5, Ghost 4S with stock firmware, etc.) should work but haven't been tested yet. If you have one, please report in [Issues](../../issues) whether it works — that's the best way to help the project.
+Flying Bear Ghost 4S with the [Marlin_FB4S](https://github.com/Sergey1560/Marlin_FB4S) firmware (`FB4S_WIFI` branch, Marlin 2.1.2) and the MKS-WIFI module. Many Ghost 4S/5 owners run this firmware — if you do too, the bridge will most likely just work. Other printers with the MKS-WIFI module (Ghost 5, Ghost 4S with stock firmware, etc.) should work but haven't been tested yet. If you have one, please report in [Issues](../../issues) whether it works — that's the best way to help the project.
 
-When a print is started over Wi-Fi, the MKS TFT screen reports it incorrectly (state, progress, temperatures). The bridge accounts for this: progress and layer come from the Marlin board's replies, elapsed time is counted by the bridge, and temperatures are refreshed via the board's auto-report (`M155`).
+While a print started over Wi-Fi is running, the MKS-WIFI module answers status queries from its own memory, and those answers go stale: "idle" while printing, zero progress, frozen temperatures. The bridge accounts for this: progress and layer come from Marlin's own replies (`SD printing byte`), elapsed time is counted by the bridge, and temperatures are refreshed via the board's auto-report (`M155`).
 
 ## Known limitations
 
 - While the module receives a file, the printer doesn't answer commands: the dashboard shows "Загрузка файла" (uploading) and waits.
+- During a file upload the firmware turns the heaters off and runs the hotend fan at full speed, then restores the temperatures. That's normal firmware behavior.
+- The firmware can't handle Cyrillic file names, so the bridge transliterates names and shortens long ones; the original name is shown in the dashboard.
 - The MKS-WIFI module keeps a single connection. Don't run another program that talks to the printer over Wi-Fi at the same time.
 - Orca always sees the printer as "ready", even while printing. Watch the print in the dashboard.
 - The default bed size is the Ghost 4S one (255 × 210 × 210 mm); change it in the settings for your printer.

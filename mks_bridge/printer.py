@@ -1,4 +1,4 @@
-"""Протокол MKS-WIFI: команды по TCP (порт 8080), заливка файла по HTTP, разбор ответов Marlin и экрана.
+"""Протокол MKS-WIFI: команды по TCP (порт 8080), заливка файла по HTTP, разбор ответов Marlin и модуля Wi-Fi.
 Модуль держит одного TCP-клиента, поэтому все обращения идут через один замок, а во время заливки — никаких."""
 import http.client
 import os
@@ -253,7 +253,7 @@ class Printer:
 
     def describe(self):
         """Один раз за запуск: прошивка (M115) и пример ответа на опрос — по ним видно, чем чужой принтер
-        отличается от проверенного (другой экран, другая прошивка)."""
+        отличается от проверенного (другая прошивка или модуль)."""
         self.described = True
         log("ответ принтера на опрос состояния: %r" % self.last_status_raw[:500])
         try:
@@ -267,7 +267,7 @@ class Printer:
         names = []
         for line in text.splitlines():
             line = line.strip().lstrip("/")
-            # экран MKS TFT пишет только имя; Marlin после имени пишет размер в байтах («MODEL.GCO 123456»)
+            # Marlin_FB4S через Wi-Fi пишет только имя; обычный Marlin после имени пишет размер в байтах («MODEL.GCO 123456»)
             m = re.match(r"(.+?\.(?:gcode|gco|gc|g))(?:\s+\d+)?$", line, re.I)
             if m:
                 names.append(m.group(1))
@@ -297,13 +297,13 @@ class Printer:
         if m:
             st["nozzle"] = (float(m[0]), float(m[1]))
             st["bed"] = (float(m[2]), float(m[3]))
-        # экран MKS на M27 отвечает сам и не знает прогресса печати, которую ведёт плата; Marlin сообщает точно
+        # модуль Wi-Fi на M27 отвечает из своей памяти и прогресса не знает; Marlin сообщает точно
         m = last(r"SD printing byte (\d+)/(\d+)")
         if m and int(m[1]):
             st["sd"] = (int(m[0]), int(m[1]))
             st["sd_live"] = True   # эту строку Marlin выдаёт только во время печати; на паузе — «Not SD printing»
         if st["progress"] == 0 and (is_printing(cached) or is_printing(st)):
-            st["progress"] = None  # «M27 0» от экрана во время печати ничего не значит: ждём данных от Marlin
+            st["progress"] = None  # «M27 0» от модуля во время печати ничего не значит: ждём данных от Marlin
         m = last(r"M73 Progress: (\d+)%(?:; Time left: (\d+)m)?")
         if m and m[1]:
             st["left"] = int(m[1]) * 60
@@ -363,7 +363,7 @@ class Printer:
                 if k == "pos":
                     st["pos_stale"] = True
         # «SD printing byte» и M73 от Marlin приходят не в каждом опросе (ответы опаздывают и идут пачками):
-        # держим последние известные, иначе прогресс скачет к нулю — экран MKS на M27 отвечает «0»
+        # держим последние известные, иначе прогресс скачет к нулю — модуль Wi-Fi на M27 отвечает «0»
         if is_printing(st):
             for k in ("sd", "left"):
                 if st.get(k) is None and prev.get(k) is not None and now - prev.get("good_t", 0) < 90:
@@ -374,7 +374,7 @@ class Printer:
         # Правду говорит позиция в файле: растёт — значит печатает.
         moved = st.get("sd_live") or (st.get("sd") and prev.get("sd") and st["sd"][0] > prev["sd"][0])
         st["sd_moving_t"] = now if moved else prev.get("sd_moving_t", 0)
-        # На это опираются и блокировки опасных команд: экран может сказать и «IDLE», а печать идёт.
+        # На это опираются и блокировки опасных команд: модуль может сказать и «IDLE», а печать идёт.
         if st["state"] != "PRINTING" and now - st["sd_moving_t"] < 40:   # строка от Marlin бывает и раз в 20–30 с
             st["state"] = "PRINTING"
         return st
@@ -456,9 +456,9 @@ class Printer:
         self.enable_autoreport()
 
     def enable_autoreport(self):
-        """Печать запущена по Wi-Fi (M23/M24): экран MKS перестаёт опрашивать температуру и на M105 отвечает
-        застывшими значениями. Просим плату саму присылать температуру раз в 2 с (M155) — это ничего не меняет
-        в печати, только частоту отчёта; экран при этом тоже оживает."""
+        """Печать запущена по Wi-Fi (M23/M24): модуль MKS-WIFI отвечает на M105 застывшими значениями из своей памяти
+        (Marlin во время печати не отвечает ему на опрос). Просим плату саму присылать температуру раз в 2 с (M155) —
+        это ничего не меняет в печати, только частоту отчёта."""
         self._autoreport = True
         try:
             self.cmd(["M155 S2"], wait=0.5)
