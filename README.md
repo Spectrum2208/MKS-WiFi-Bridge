@@ -92,7 +92,6 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 ## Известные ограничения
 
 - Пока модуль принимает файл, принтер не отвечает на команды: панель показывает «Загрузка файла» и ждёт.
-- Во время загрузки файла прошивка сама выключает нагрев и включает вентилятор хотэнда на полную, а после загрузки возвращает температуры. Это нормально, так устроена прошивка.
 - Русские буквы в именах файлов прошивка не понимает, поэтому мост переводит имена в латиницу и укорачивает длинные — исходное имя видно в панели.
 - Модуль MKS-WIFI держит одно соединение. Не открывайте одновременно другую программу, которая общается с принтером по Wi-Fi.
 - Для Orca состояние принтера всегда «готов», даже во время печати. За печатью следите в панели.
@@ -212,7 +211,6 @@ While a print started over Wi-Fi is running, the MKS-WIFI module answers status 
 ## Known limitations
 
 - While the module receives a file, the printer doesn't answer commands: the dashboard shows "Загрузка файла" (uploading) and waits.
-- During a file upload the firmware turns the heaters off and runs the hotend fan at full speed, then restores the temperatures. That's normal firmware behavior.
 - The firmware can't handle Cyrillic file names, so the bridge transliterates names and shortens long ones; the original name is shown in the dashboard.
 - The MKS-WIFI module keeps a single connection. Don't run another program that talks to the printer over Wi-Fi at the same time.
 - Orca always sees the printer as "ready", even while printing. Watch the print in the dashboard.
