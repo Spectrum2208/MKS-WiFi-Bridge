@@ -57,9 +57,20 @@
 
 ### Вариант 1: готовая программа (Windows)
 
-1. Скачайте `MKSBridge.exe` из раздела [Releases](../../releases).
-2. Запустите. Windows может предупредить о неизвестном издателе («Windows защитила ваш компьютер») — нажмите «Подробнее» → «Выполнить в любом случае».
-3. Откроется панель `http://127.0.0.1:5000`, мост сам поищет принтер в сети. Значок моста появится в трее.
+1. Скачайте `MKSBridge.exe` из раздела [Releases](../../releases) (внизу релиза, «Assets»).
+2. Браузер может предупредить, что файл **«скачивается редко»**: программа не подписана платным сертификатом, и Windows её
+   пока «не знает». В панели загрузок: **«…» → «Сохранить»**, затем в окне SmartScreen — стрелка у «Удалить» →
+   **«Все равно сохранить»**.
+
+   <img src="docs/img/install-1-download.png" width="300" alt="Файл скачивается редко"> <img src="docs/img/install-2-save.png" width="300" alt="Меню: Сохранить"> <img src="docs/img/install-3-smartscreen.png" width="240" alt="SmartScreen: Все равно сохранить">
+
+3. Запустите. Если появится окно «Windows защитила ваш компьютер» — «Подробнее» → «Выполнить в любом случае».
+4. Брандмауэр спросит про доступ к сети — **«Разрешить»**. Это нужно, чтобы панель открывалась с телефона;
+   без разрешения мост работает только на этом компьютере.
+
+   <img src="docs/img/install-4-firewall.png" width="340" alt="Брандмауэр: Разрешить">
+
+5. Откроется панель `http://127.0.0.1:5000`, мост сам поищет принтер в сети. Значок моста появится в трее.
 
 ### Вариант 2: из исходников
 
@@ -117,7 +128,7 @@ MKSBridge.exe [--ip АДРЕС] [--port 5000] [--no-tray] [--no-browser]
 
 ## Если что-то не работает
 
-- **Windows спрашивает про брандмауэр** при первом запуске. Разрешите доступ для частных сетей — тогда панель откроется и с телефона. Если отказать, с этого компьютера всё работает, а с телефона нет.
+- **Windows спрашивает про брандмауэр** при первом запуске. Нажмите «Разрешить» — тогда панель откроется и с телефона. Если отказать, с этого компьютера всё работает, а с телефона нет.
 - **Антивирус ругается на `MKSBridge.exe`.** Программы, собранные PyInstaller, иногда получают ложные срабатывания. Можно запустить мост из исходников (вариант 2) — это тот же код.
 - **Мост не находит принтер.** Принтер и компьютер должны быть в одной сети (не в гостевой). Если сеть устроена сложнее обычной домашней, впишите IP принтера вручную в настройках панели — его показывает экран принтера в разделе Wi-Fi.
 - **«Порт 5000 занят другой программой».** Запустите мост с другим портом (`--port 5001`) и укажите этот же порт в Orca.
@@ -240,9 +251,20 @@ and a print head drawn from E3D's technical drawings.
 
 ### Option 1: ready-made program (Windows)
 
-1. Download `MKSBridge.exe` from [Releases](../../releases).
-2. Run it. Windows may warn about an unknown publisher ("Windows protected your PC") — click "More info" → "Run anyway".
-3. The dashboard opens at `http://127.0.0.1:5000` and the bridge searches for the printer on your network. The bridge icon appears in the system tray.
+1. Download `MKSBridge.exe` from [Releases](../../releases) (at the bottom of the release, "Assets").
+2. Your browser may warn that the file **"isn't commonly downloaded"**: the program isn't signed with a paid certificate,
+   so Windows doesn't "know" it yet. In the downloads panel: **"…" → "Keep"**, then in the SmartScreen window — the arrow
+   next to "Delete" → **"Keep anyway"** (screenshots are from Windows in Russian).
+
+   <img src="docs/img/install-1-download.png" width="300" alt="File isn't commonly downloaded"> <img src="docs/img/install-2-save.png" width="300" alt="Menu: Keep"> <img src="docs/img/install-3-smartscreen.png" width="240" alt="SmartScreen: Keep anyway">
+
+3. Run it. If "Windows protected your PC" appears — "More info" → "Run anyway".
+4. The firewall asks about network access — **"Allow"**. It's needed to open the dashboard on your phone;
+   without it the bridge works on this PC only.
+
+   <img src="docs/img/install-4-firewall.png" width="340" alt="Firewall: Allow">
+
+5. The dashboard opens at `http://127.0.0.1:5000` and the bridge searches for the printer on your network. The bridge icon appears in the system tray.
 
 ### Option 2: from source
 
@@ -302,7 +324,7 @@ MKSBridge.exe [--ip ADDRESS] [--port 5000] [--no-tray] [--no-browser]
 
 ## Troubleshooting
 
-- **Windows asks about the firewall** on first run. Allow access on private networks so the dashboard also opens on your phone. If you deny it, everything still works on this PC, just not from the phone.
+- **Windows asks about the firewall** on first run. Click "Allow" so the dashboard also opens on your phone. If you deny it, everything still works on this PC, just not from the phone.
 - **Your antivirus flags `MKSBridge.exe`.** Programs built with PyInstaller sometimes get false positives. You can run the bridge from source instead (option 2) — it's the same code.
 - **The bridge can't find the printer.** The printer and the PC must be on the same network (not a guest network). If your network is more complex than a typical home one, enter the printer's IP manually in the dashboard settings — the printer screen shows it in its Wi-Fi menu.
 - **"Port 5000 is used by another program".** Start the bridge on another port (`--port 5001`) and use the same port in Orca.
