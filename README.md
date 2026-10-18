@@ -57,20 +57,24 @@
 
 ### Вариант 1: готовая программа (Windows)
 
-1. Скачайте `MKSBridge.exe` из раздела [Releases](../../releases) (внизу релиза, «Assets»).
+1. Скачайте **`MKSBridge-Setup.exe`** из раздела [Releases](../../releases) (внизу релиза, «Assets»). Это обычный установщик:
+   выбор папки, ярлык на рабочем столе, автозапуск с Windows; права администратора не нужны.
+   Если установщики не любите, там же есть `MKSBridge.exe` — та же программа одним файлом, без установки.
 2. Браузер может предупредить, что файл **«скачивается редко»**: программа не подписана платным сертификатом, и Windows её
    пока «не знает». В панели загрузок: **«…» → «Сохранить»**, затем в окне SmartScreen — стрелка у «Удалить» →
    **«Все равно сохранить»**.
 
    <img src="docs/img/install-1-download.png" width="300" alt="Файл скачивается редко"> <img src="docs/img/install-2-save.png" width="300" alt="Меню: Сохранить"> <img src="docs/img/install-3-smartscreen.png" width="240" alt="SmartScreen: Все равно сохранить">
 
-3. Запустите. Если появится окно «Windows защитила ваш компьютер» — «Подробнее» → «Выполнить в любом случае».
+3. Запустите установщик. Если появится окно «Windows защитила ваш компьютер» — «Подробнее» → «Выполнить в любом случае».
+   Удаляется программа как обычно: «Параметры → Приложения → MKS WiFi Bridge»; настройки при этом сохраняются.
 4. Брандмауэр спросит про доступ к сети — **«Разрешить»**. Это нужно, чтобы панель открывалась с телефона;
    без разрешения мост работает только на этом компьютере.
 
    <img src="docs/img/install-4-firewall.png" width="340" alt="Брандмауэр: Разрешить">
 
 5. Откроется панель `http://127.0.0.1:5000`, мост сам поищет принтер в сети. Значок моста появится в трее.
+   Дальше мост запускается ярлыком «MKS WiFi Bridge» или сам вместе с Windows.
 
 ### Вариант 2: из исходников
 
@@ -251,20 +255,24 @@ and a print head drawn from E3D's technical drawings.
 
 ### Option 1: ready-made program (Windows)
 
-1. Download `MKSBridge.exe` from [Releases](../../releases) (at the bottom of the release, "Assets").
+1. Download **`MKSBridge-Setup.exe`** from [Releases](../../releases) (at the bottom of the release, "Assets"). It's a regular installer:
+   install folder, desktop shortcut, start with Windows; no administrator rights needed.
+   If you don't like installers, `MKSBridge.exe` is there too — the same program as a single file, no installation.
 2. Your browser may warn that the file **"isn't commonly downloaded"**: the program isn't signed with a paid certificate,
    so Windows doesn't "know" it yet. In the downloads panel: **"…" → "Keep"**, then in the SmartScreen window — the arrow
    next to "Delete" → **"Keep anyway"** (screenshots are from Windows in Russian).
 
    <img src="docs/img/install-1-download.png" width="300" alt="File isn't commonly downloaded"> <img src="docs/img/install-2-save.png" width="300" alt="Menu: Keep"> <img src="docs/img/install-3-smartscreen.png" width="240" alt="SmartScreen: Keep anyway">
 
-3. Run it. If "Windows protected your PC" appears — "More info" → "Run anyway".
+3. Run the installer. If "Windows protected your PC" appears — "More info" → "Run anyway".
+   To uninstall: "Settings → Apps → MKS WiFi Bridge"; your settings are kept.
 4. The firewall asks about network access — **"Allow"**. It's needed to open the dashboard on your phone;
    without it the bridge works on this PC only.
 
    <img src="docs/img/install-4-firewall.png" width="340" alt="Firewall: Allow">
 
 5. The dashboard opens at `http://127.0.0.1:5000` and the bridge searches for the printer on your network. The bridge icon appears in the system tray.
+   After that, start the bridge from the "MKS WiFi Bridge" shortcut, or let it start with Windows.
 
 ### Option 2: from source
 
