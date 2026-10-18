@@ -1,0 +1,48 @@
+name: Мой принтер (compatibility report)
+description: Попробовали мост на своём принтере — расскажите, работает ли
+labels: ["совместимость"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Мост проверен только на одном Ghost 4S, поэтому любой отчёт — даже «всё работает» — очень помогает.
+        The bridge has only been tested on one printer, so any report helps a lot.
+  - type: input
+    id: printer
+    attributes:
+      label: Принтер (printer)
+      placeholder: Flying Bear Ghost 5
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Прошивка (firmware)
+      placeholder: стоковая MKS / Marlin_FB4S / другая
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Как работает (result)
+      options:
+        - Всё работает
+        - Работает, но есть проблемы
+        - Не работает
+    validations:
+      required: true
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Что проверили (what you tried)
+      options:
+        - label: Отправка на печать из Orca
+        - label: Панель показывает температуры и положение головы
+        - label: Прогресс и слой во время печати
+        - label: Картинка модели на экране принтера (для стоковых экранов MKS)
+        - label: Доступ с телефона
+  - type: textarea
+    id: notes
+    attributes:
+      label: Подробности (details)
+      description: Что не так, что удивило, что понравилось. Журнал и скриншоты можно перетащить сюда.

@@ -1,0 +1,59 @@
+name: Ошибка (bug report)
+description: Что-то работает не так, как должно
+labels: ["ошибка"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что сообщаете! Чем подробнее — тем быстрее найдётся причина.
+        Thanks for reporting! English is fine too.
+  - type: input
+    id: printer
+    attributes:
+      label: Принтер (printer)
+      placeholder: Flying Bear Ghost 4S
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Прошивка (firmware)
+      description: Если не знаете — напишите «стоковая» или как она называется на экране принтера
+      placeholder: Marlin_FB4S от Sergey1560 / стоковая MKS
+  - type: input
+    id: version
+    attributes:
+      label: Версия моста (bridge version)
+      description: Видна в окне настроек панели, рядом со словом «Настройки»
+      placeholder: 2.0.0-beta.1
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Как запущен мост (how it runs)
+      options:
+        - Установщик (MKSBridge-Setup.exe)
+        - MKSBridge.exe без установки
+        - Из исходников (python run_bridge.py)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Что делали и что случилось (what happened)
+      description: По шагам. Что ожидали увидеть и что получилось вместо этого.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Журнал (log)
+      description: |
+        Настройки панели → «Если что-то не работает» → «Скачать», и перетащите файл сюда.
+        В журнале нет паролей и PIN-кода — только работа моста, ответы принтера и названия файлов.
+  - type: textarea
+    id: screens
+    attributes:
+      label: Скриншоты (screenshots)
+      description: Если ошибка видна в панели или в Orca — перетащите картинку сюда
