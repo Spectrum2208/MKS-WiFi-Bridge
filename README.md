@@ -24,6 +24,10 @@
 - **Доступ с телефона** по PIN-коду (включается в настройках).
 - **Без установки зависимостей:** готовый `.exe` или Python без дополнительных пакетов.
 
+> ⚠️ **Используйте на свой страх и риск.** Мост проверен на одном принтере — моём. Он отправляет на принтер файлы
+> и команды, включая нагрев и движение осей. Автор не несёт ответственности за испорченную печать, принтер, плату,
+> прошивку, имущество или что-либо ещё. Как и с любой печатью — не оставляйте принтер без присмотра.
+
 ## Установка
 
 ### Вариант 1: готовая программа (Windows)
@@ -46,19 +50,33 @@ python run_bridge.py
 
 ## Настройка OrcaSlicer
 
-1. В Orca откройте настройки принтера → значок Wi-Fi рядом с именем принтера («Физический принтер»).
-2. **Тип хоста:** `Octo/Klipper`.
-3. **Адрес:** `http://127.0.0.1:5000`.
-4. **API-ключ:** любой непустой текст, например `mks`.
-5. Нажмите «Тест» — Orca должна подключиться.
+1. Нажмите значок Wi-Fi («Подключение») рядом с именем принтера — откроется окно «Физический принтер».
 
-Теперь кнопка «Отправить» / «Печать» в Orca отправляет файл на принтер через мост. Вкладка «Принтер» (Device) в Orca показывает веб-панель.
+   <img src="docs/img/orca-1-connect.png" width="560" alt="Значок «Подключение» у принтера в Orca">
+
+2. **Тип хоста:** `Octo/Klipper`.
+3. **Имя хоста, IP/URL-адрес:** `http://127.0.0.1:5000`.
+4. **API-ключ:** любой непустой текст, например `mks`.
+5. Нажмите «Тест».
+
+   <img src="docs/img/orca-2-host.png" width="560" alt="Окно «Физический принтер» в Orca">
+
+   Должно появиться сообщение об успешном подключении:
+
+   <img src="docs/img/orca-3-test-ok.png" width="400" alt="Подключение к OctoPrint успешно установлено">
+
+6. Нажмите «Ок». Теперь кнопка «Отправить» / «Печать» в Orca отправляет файл на принтер через мост,
+   а вкладка **«Принтер»** вверху окна Orca (**6** на первой картинке) показывает веб-панель.
 
 ## Первый запуск
 
 - Мост сам ищет принтер в локальной сети. Если не нашёл — откройте настройки панели (значок справа вверху) и нажмите «Найти принтер» или впишите IP вручную.
 - В настройках задаются размеры стола, длина имени файла на экране принтера, автозапуск вместе с Windows и доступ с телефона.
 - Настройки и журнал лежат в `%APPDATA%\MKSBridge\`.
+
+<img src="docs/img/panel-settings.png" width="420" alt="Настройки панели">
+
+**1** — адрес принтера и кнопка «Найти», **2** — размеры области печати вашего принтера, **3** — доступ с телефона.
 
 ### Параметры командной строки
 
@@ -96,6 +114,14 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 - Модуль MKS-WIFI держит одно соединение. Не открывайте одновременно другую программу, которая общается с принтером по Wi-Fi.
 - Для Orca состояние принтера всегда «готов», даже во время печати. За печатью следите в панели.
 - Размеры стола по умолчанию — от Ghost 4S (255 × 210 × 210 мм), поменяйте их в настройках под свой принтер.
+
+## Планы
+
+Без обещаний сроков — просто что хочется сделать дальше:
+
+- английский интерфейс панели;
+- схема для принтеров с подвижным столом (дрыгостолов);
+- выбор хотэнда и экструдера в отрисовке головы.
 
 ## Участие
 
@@ -143,6 +169,10 @@ and a print head drawn from E3D's technical drawings.
 - **Phone access** with a PIN code (enable it in the settings).
 - **No dependencies to install:** a ready-made `.exe`, or plain Python with no extra packages.
 
+> ⚠️ **Use at your own risk.** The bridge has been tested on one printer — mine. It sends files and commands to the
+> printer, including heating and axis moves. The author is not responsible for failed prints, damage to the printer,
+> board, firmware, property or anything else. As with any print, don't leave the printer unattended.
+
 ## Installation
 
 ### Option 1: ready-made program (Windows)
@@ -165,19 +195,35 @@ The tray icon appears if the optional packages are installed: `pip install pystr
 
 ## OrcaSlicer setup
 
-1. In Orca, open the printer settings → the Wi-Fi icon next to the printer name ("Physical printer").
-2. **Host type:** `Octo/Klipper`.
-3. **Hostname/URL:** `http://127.0.0.1:5000`.
-4. **API key:** any non-empty text, e.g. `mks`.
-5. Click "Test" — Orca should connect.
+The screenshots show Orca in Russian; the numbers match the steps.
 
-Now the "Send" / "Print" button in Orca sends the file to the printer through the bridge. Orca's "Device" tab shows the dashboard.
+1. Click the Wi-Fi ("Connection") icon next to the printer name — the "Physical printer" window opens.
+
+   <img src="docs/img/orca-1-connect.png" width="560" alt="Connection icon next to the printer in Orca">
+
+2. **Host type:** `Octo/Klipper`.
+3. **Hostname, IP or URL:** `http://127.0.0.1:5000`.
+4. **API key:** any non-empty text, e.g. `mks`.
+5. Click "Test".
+
+   <img src="docs/img/orca-2-host.png" width="560" alt="Physical printer window in Orca">
+
+   You should see a "connected successfully" message:
+
+   <img src="docs/img/orca-3-test-ok.png" width="400" alt="Connection to OctoPrint works">
+
+6. Click "OK". Now the "Send" / "Print" button in Orca sends the file to the printer through the bridge,
+   and Orca's **"Device"** tab at the top of the window (**6** in the first picture) shows the dashboard.
 
 ## First run
 
 - The bridge searches for the printer on your local network. If it doesn't find it, open the dashboard settings (top-right icon) and click "Find printer" (Найти принтер), or enter the IP manually.
 - The settings hold the bed size, the file name length for the printer screen, autostart with Windows and phone access.
 - Settings and the log live in `%APPDATA%\MKSBridge\`.
+
+<img src="docs/img/panel-settings.png" width="420" alt="Dashboard settings">
+
+**1** — printer address and the "Найти" (find) button, **2** — your printer's build volume, **3** — phone access.
 
 ### Command-line options
 
@@ -216,7 +262,13 @@ While a print started over Wi-Fi is running, the MKS-WIFI module answers status 
 - Orca always sees the printer as "ready", even while printing. Watch the print in the dashboard.
 - The default bed size is the Ghost 4S one (255 × 210 × 210 mm); change it in the settings for your printer.
 
-The interface is in Russian for now.
+## Plans
+
+No promised dates — just what I'd like to do next:
+
+- an English dashboard interface (it's in Russian for now);
+- a diagram for bed slinger printers (moving Y bed);
+- a choice of hotend and extruder for the print head drawing.
 
 ## Contributing
 

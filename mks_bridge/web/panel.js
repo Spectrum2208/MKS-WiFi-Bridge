@@ -45,6 +45,8 @@ async function tick(){
   if(s.bridge!==false)$('#ip').textContent=s.ip||'не задан';
   const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':(s.state||'—')+(s.stale?' …':'')):s.bridge===false?'мост выключен':'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
   $('#nozzle').innerHTML=ttH(s.nozzle);$('#bed').innerHTML=ttH(s.bed);
+  // в пустом поле серым — текущая цель, как в Mainsail/OctoPrint: вписал поверх, Enter
+  $('#tn').placeholder=s.nozzle?s.nozzle[1].toFixed(0):'';$('#tb').placeholder=s.bed?s.bed[1].toFixed(0):'';
   $('#prog').style.width=(s.progress||0)+'%';$('#progtxt').textContent=s.progress!=null?s.progress+'%':'—';
   $('#layer').textContent=s.layers?(s.layer_exact?'':'≈ ')+s.layer+' / '+s.layers:'—';
   $('#zv').textContent=s.pos&&s.pos.z!=null?s.pos.z.toFixed(2)+' мм':'—';
@@ -163,8 +165,8 @@ function homeAnim(c){const ax=c.trim().toUpperCase().split(/\s+/).slice(1).filte
 async function cmd(c){const tok=c.trim().split(/\s+/)[0].toUpperCase(),dg=DANGER[tok];if(dg&&!await ask(dg[0],dg[1],dg[2],dg[3]))return;
   if(tok==='G28'&&!/PRINT|PAUSE/.test(LASTS.state||'')){homeAnim(c);HOMING=Date.now()}
   tab('log');log('> '+c);const r=await api('/api/console',{cmd:c,force:$('#force').checked});
-  if(r.error){if(tok==='G28')HOMING=0;log(r.error,'#ef5350')}
-  else{log(r.reply||(r.homing?'(принтер паркуется: пока не закончит, остальные команды недоступны)':'(команда отправлена, ответа нет)'));if(r.homing)tick()}}
+  if(r.error){if(tok==='G28')HOMING=0;log(r.error,'#ef5350');return false}
+  else{log(r.reply||(r.homing?'(принтер паркуется: пока не закончит, остальные команды недоступны)':'(команда отправлена, ответа нет)'));if(r.homing)tick();return true}}
 function sendCon(){const v=$('#cin').value.trim();if(!v)return;CMDH.push(v);hi=CMDH.length;cmd(v);$('#cin').value=''}
 function conKey(e){if(e.key==='Enter')sendCon();else if(e.key==='ArrowUp'&&CMDH.length){hi=Math.max(0,hi-1);$('#cin').value=CMDH[hi];e.preventDefault()}
   else if(e.key==='ArrowDown'&&CMDH.length){hi=Math.min(CMDH.length,hi+1);$('#cin').value=CMDH[hi]||'';e.preventDefault()}}
@@ -559,7 +561,8 @@ function inEl(t,id){return !!(t&&t.closest&&t.closest(id))}
   T.addEventListener('pointerleave',()=>{if(TW)$('#tHov').style.display='none'});F.addEventListener('pointerleave',()=>{if(TW)$('#fHov').style.display='none'});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ARM){ARM=null;syncArm()}});
   document.addEventListener('pointerdown',e=>{if(ARM&&!inEl(e.target,'#svgTop')&&!inEl(e.target,'#svgFront')){ARM=null;syncArm()}},true)})();
-function setT(code,id){const v=$('#'+id).value;if(v==='')return toast('Введи температуру');cmd(code+' S'+(+v))}
+// поле очищается, когда принтер принял команду: новая цель видна в плитке («/ 200°»)
+async function setT(code,id){const el=$('#'+id),v=el.value;if(v==='')return toast('Введи температуру');if(await cmd(code+' S'+(+v))){el.value='';el.blur()}}
 const printing=()=>/PRINT|PAUSE/.test(LASTS.state||'');
 const SPOIL=['Выключить нагрев во время печати?','Пластик перестанет плавиться, печать будет испорчена.','Выключить',1];
 async function heatOff(code){if(printing()&&!await ask(...SPOIL))return;cmd(code+' S0')}
