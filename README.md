@@ -66,8 +66,8 @@
 Нужен Python 3.10 или новее (проверено на 3.13). Дополнительные пакеты не нужны.
 
 ```
-git clone https://github.com/Spectrum2208/mks-wifi-bridge.git
-cd mks-wifi-bridge
+git clone https://github.com/Spectrum2208/MKS-WiFi-Bridge.git
+cd MKS-WiFi-Bridge
 python run_bridge.py
 ```
 
@@ -167,6 +167,11 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 Если мост вам пригодился и хочется сказать спасибо монетой — [страница поддержки на CloudTips](https://pay.cloudtips.ru/p/865e681a).
 Это добровольно: мост был и останется бесплатным. А звёздочка на GitHub и сообщение «работает на моём принтере» тоже очень радуют.
 
+## Как сделан проект
+
+Идея, требования, проверка на живом принтере и отладка — мои. Код написан вместе с Claude Code (ИИ-ассистент от Anthropic):
+я ставил задачи, проверял результат на своём Ghost 4S и решал, что идёт в релиз.
+
 ## Лицензия
 
 [PolyForm Noncommercial 1.0.0](LICENSE.md). Пользоваться, изучать, изменять и делиться можно бесплатно в некоммерческих целях.
@@ -244,8 +249,8 @@ and a print head drawn from E3D's technical drawings.
 Requires Python 3.10 or newer (tested on 3.13). No extra packages needed.
 
 ```
-git clone https://github.com/Spectrum2208/mks-wifi-bridge.git
-cd mks-wifi-bridge
+git clone https://github.com/Spectrum2208/MKS-WiFi-Bridge.git
+cd MKS-WiFi-Bridge
 python run_bridge.py
 ```
 
@@ -346,6 +351,11 @@ including under a separate commercial permission.
 
 If the bridge helped you and you'd like to say thanks with a coin — [support page on CloudTips](https://pay.cloudtips.ru/p/865e681a).
 It's entirely optional: the bridge is and will stay free. A star on GitHub or a "works on my printer" note makes my day too.
+
+## How it was made
+
+The idea, the requirements, testing on a real printer and debugging are mine. The code was written together with Claude Code
+(an AI assistant by Anthropic): I set the tasks, checked the results on my Ghost 4S and decided what goes into a release.
 
 ## License
 
