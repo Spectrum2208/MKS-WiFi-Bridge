@@ -13,7 +13,7 @@ OUTL_DIR = os.path.join(CFG_DIR, "outlines")   # контуры моделей �
 
 DEFAULTS = {"printer_ip": "", "port": 5000, "max_name": 30, "ellipsis": "~", "overwrite": True,
             "remote": False, "pin": "", "tcp_port": 8080, "http_port": 80, "background_poll": True,
-            "bed_x": 255, "bed_y": 210, "bed_z": 210, "z_bed": True}
+            "bed_x": 255, "bed_y": 210, "bed_z": 210, "z_bed": True, "preview": "off"}
 CFG = dict(DEFAULTS)
 _cfg_lock = threading.Lock()
 

@@ -16,13 +16,38 @@
 
 ## Возможности
 
-- **Печать из Orca одной кнопкой.** Мост притворяется сервером OctoPrint: Orca отправляет файл как обычно, мост заливает его на карту принтера и, если нужно, запускает печать.
-- **Веб-панель с живой схемой принтера:** вид сверху и спереди, положение головы, текущий слой модели, температуры с графиком, прогресс, время до конца, обдув.
-- **Управление:** перемещение осей кликом по схеме, парковка, нагрев, подача прутка, обдув, файлы на карте, G-code консоль со справочником команд.
-- **Защита от ошибок:** во время печати опасные команды (движение, парковка, удаление файлов) заблокированы.
-- **Сам находит принтер в сети** и переподключается, если роутер выдал ему другой адрес.
-- **Доступ с телефона** по PIN-коду (включается в настройках).
-- **Без установки зависимостей:** готовый `.exe` или Python без дополнительных пакетов.
+### Печать из OrcaSlicer
+- Эмуляция OctoPrint API: в Orca тип хоста Octo/Klipper, без плагинов и скриптов пост-обработки.
+- Заливка по HTTP: до 3 попыток, проверка файла на карте, удаление недокачанного.
+- Запуск печати сразу после заливки.
+- Транслитерация кириллицы, укорачивание имён под экран принтера (12–60 символов), замена или нумерация одноимённых файлов.
+- Эскиз модели для стоковых экранов MKS: PNG из G-code переводится в формат MKS (50 или 100 px и 200 px).
+
+### Веб-панель
+- Схема принтера сверху и спереди в масштабе стола; движение головы с ускорениями и скоростями из прошивки.
+- Модель по G-code: текущий слой — все линии экструзии, остальные — контуры, спереди — силуэт напечатанного.
+- Экструдер в разрезе: E3D V6 и BMG по чертежам производителя, передаточное отношение 50:17.
+- Прогресс по позиции Marlin в файле: слой, процент, прошедшее и оставшееся время, время окончания.
+- Обдув модели по командам M106/M107 из G-code.
+- График температур сопла и стола за 5, 15 и 60 минут; запись в фоне при закрытой панели.
+
+### Управление
+- Перемещение кликом по схеме, шаг 0,1–50 мм, парковка, отключение моторов.
+- Нагрев и остывание, подача и втягивание прутка, обдув 0–100 %.
+- Файлы на карте: список, печать, удаление.
+- G-code консоль с историей и справочником из 39 команд Marlin и MKS.
+
+### Работа с MKS-WIFI
+- Учёт устаревших ответов модуля во время печати: состояние, прогресс и температуры берутся у Marlin.
+- Одно TCP-соединение на принтер: опрос уступает его командам, во время заливки принтер не опрашивается.
+- Блокировка движения, парковки и удаления файлов во время печати.
+- Поиск принтера в локальной сети, переподключение при смене IP.
+
+### Запуск и доступ
+- Windows: готовый `.exe`, значок в трее, автозапуск.
+- Исходники: Python 3.10+, только стандартная библиотека.
+- Панель во вкладке «Принтер» в Orca, в браузере, с телефона по PIN-коду.
+- Журнал работы с ротацией, выгрузка в один клик.
 
 > ⚠️ **Используйте на свой страх и риск.** Мост проверен на одном принтере — моём. Он отправляет на принтер файлы
 > и команды, включая нагрев и движение осей. Автор не несёт ответственности за испорченную печать, принтер, плату,
@@ -68,6 +93,10 @@ python run_bridge.py
 6. Нажмите «Ок». Теперь кнопка «Отправить» / «Печать» в Orca отправляет файл на принтер через мост,
    а вкладка **«Принтер»** вверху окна Orca (**6** на первой картинке) показывает веб-панель.
 
+**Картинка модели на экране принтера** (для стоковых экранов MKS; Color UI и другие экраны, которые рисует сам Marlin, картинок не показывают).
+В Orca: настройки принтера → «Основная информация» → «Эскизы в G-коде», впишите, например, `300x300/PNG`.
+В панели: настройки → «Картинка модели на экране» → ваш принтер (**3** на картинке ниже). Мост уменьшит эскиз до нужных размеров сам.
+
 ## Первый запуск
 
 - Мост сам ищет принтер в локальной сети. Если не нашёл — откройте настройки панели (значок справа вверху) и нажмите «Найти принтер» или впишите IP вручную.
@@ -76,7 +105,7 @@ python run_bridge.py
 
 <img src="docs/img/panel-settings.png" width="420" alt="Настройки панели">
 
-**1** — адрес принтера и кнопка «Найти», **2** — размеры области печати вашего принтера, **3** — доступ с телефона.
+**1** — адрес принтера и кнопка «Найти», **2** — размеры области печати вашего принтера, **3** — картинка модели для экрана принтера, **4** — доступ с телефона.
 
 ### Параметры командной строки
 
@@ -110,6 +139,7 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 ## Известные ограничения
 
 - Пока модуль принимает файл, принтер не отвечает на команды: панель показывает «Загрузка файла» и ждёт.
+- Картинку для стоковых экранов MKS автор проверить не может (у автора Color UI): формат взят у плагина MKS WiFi для Cura. Если у вас стоковый экран — напишите в [Issues](../../issues), показалась ли картинка.
 - Русские буквы в именах файлов прошивка не понимает, поэтому мост переводит имена в латиницу и укорачивает длинные — исходное имя видно в панели.
 - Модуль MKS-WIFI держит одно соединение. Не открывайте одновременно другую программу, которая общается с принтером по Wi-Fi.
 - Для Orca состояние принтера всегда «готов», даже во время печати. За печатью следите в панели.
@@ -121,7 +151,8 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 
 - английский интерфейс панели;
 - схема для принтеров с подвижным столом (дрыгостолов);
-- выбор хотэнда и экструдера в отрисовке головы.
+- выбор хотэнда и экструдера в отрисовке головы;
+- движение головы и подача прутка по G-code в реальном времени (?).
 
 ## Участие
 
@@ -161,13 +192,38 @@ and a print head drawn from E3D's technical drawings.
 
 ## Features
 
-- **One-click printing from Orca.** The bridge pretends to be an OctoPrint server: Orca sends the file as usual, the bridge uploads it to the printer's SD card and starts the print if asked.
-- **Web dashboard with a live printer diagram:** top and front views, head position, the current layer of the model, temperatures with a chart, progress, time left, part cooling fan.
-- **Control:** move axes by clicking the diagram, homing, heating, filament feed, fan, SD card files, a G-code console with a command reference.
-- **Safety:** dangerous commands (moves, homing, file deletion) are blocked while printing.
-- **Finds the printer on the network by itself** and reconnects if the router gives it a new address.
-- **Phone access** with a PIN code (enable it in the settings).
-- **No dependencies to install:** a ready-made `.exe`, or plain Python with no extra packages.
+### Printing from OrcaSlicer
+- OctoPrint API emulation: host type Octo/Klipper in Orca, no plugins or post-processing scripts.
+- HTTP upload: up to 3 attempts, file verified on the SD card, half-uploaded files removed.
+- Print starts right after the upload.
+- Cyrillic transliteration, names shortened for the printer screen (12–60 characters), same-name files replaced or numbered.
+- Model thumbnail for stock MKS screens: the PNG from the G-code is converted to the MKS format (50 or 100 px and 200 px).
+
+### Web dashboard
+- Top and front printer views at your bed's scale; head motion with the accelerations and speeds from the firmware.
+- Model from the G-code: the current layer with every extrusion line, other layers as outlines, a front silhouette of what's printed.
+- Cutaway extruder: E3D V6 and BMG from manufacturer drawings, 50:17 gear ratio.
+- Progress from Marlin's file position: layer, percent, time elapsed and left, finish time.
+- Part cooling fan from the M106/M107 commands in the G-code.
+- Nozzle and bed temperature chart over 5, 15 and 60 minutes; recorded in the background with the dashboard closed.
+
+### Control
+- Click-to-move on the diagram, 0.1–50 mm steps, homing, motors off.
+- Heating and cooling, filament feed and retract, fan 0–100 %.
+- SD card files: list, print, delete.
+- G-code console with history and a reference of 39 Marlin and MKS commands.
+
+### MKS-WIFI handling
+- Stale module replies during a print are accounted for: state, progress and temperatures come from Marlin.
+- One TCP connection to the printer: polling yields to commands, no polling during uploads.
+- Moves, homing and file deletion blocked while printing.
+- Printer discovery on the local network, reconnect after an IP change.
+
+### Running and access
+- Windows: ready-made `.exe`, tray icon, autostart.
+- From source: Python 3.10+, standard library only.
+- Dashboard in Orca's "Device" tab, in a browser, on a phone with a PIN code.
+- Rotating log, one-click download.
 
 > ⚠️ **Use at your own risk.** The bridge has been tested on one printer — mine. It sends files and commands to the
 > printer, including heating and axis moves. The author is not responsible for failed prints, damage to the printer,
@@ -215,6 +271,10 @@ The screenshots show Orca in Russian; the numbers match the steps.
 6. Click "OK". Now the "Send" / "Print" button in Orca sends the file to the printer through the bridge,
    and Orca's **"Device"** tab at the top of the window (**6** in the first picture) shows the dashboard.
 
+**Model picture on the printer screen** (for stock MKS screens; Color UI and other screens drawn by Marlin itself show no pictures).
+In Orca: printer settings → "Basic information" → "G-code thumbnails", enter e.g. `300x300/PNG`.
+In the dashboard: settings → "Картинка модели на экране" (model picture) → your printer (**3** in the picture below). The bridge resizes the thumbnail itself.
+
 ## First run
 
 - The bridge searches for the printer on your local network. If it doesn't find it, open the dashboard settings (top-right icon) and click "Find printer" (Найти принтер), or enter the IP manually.
@@ -223,7 +283,7 @@ The screenshots show Orca in Russian; the numbers match the steps.
 
 <img src="docs/img/panel-settings.png" width="420" alt="Dashboard settings">
 
-**1** — printer address and the "Найти" (find) button, **2** — your printer's build volume, **3** — phone access.
+**1** — printer address and the "Найти" (find) button, **2** — your printer's build volume, **3** — model picture for the printer screen, **4** — phone access.
 
 ### Command-line options
 
@@ -257,6 +317,7 @@ While a print started over Wi-Fi is running, the MKS-WIFI module answers status 
 ## Known limitations
 
 - While the module receives a file, the printer doesn't answer commands: the dashboard shows "Загрузка файла" (uploading) and waits.
+- The author can't test the picture on stock MKS screens (the author's printer runs Color UI): the format is taken from the MKS WiFi plugin for Cura. If you have a stock screen, please report in [Issues](../../issues) whether the picture shows up.
 - The firmware can't handle Cyrillic file names, so the bridge transliterates names and shortens long ones; the original name is shown in the dashboard.
 - The MKS-WIFI module keeps a single connection. Don't run another program that talks to the printer over Wi-Fi at the same time.
 - Orca always sees the printer as "ready", even while printing. Watch the print in the dashboard.
@@ -268,7 +329,8 @@ No promised dates — just what I'd like to do next:
 
 - an English dashboard interface (it's in Russian for now);
 - a diagram for bed slinger printers (moving Y bed);
-- a choice of hotend and extruder for the print head drawing.
+- a choice of hotend and extruder for the print head drawing;
+- live head movement and filament feed simulated from the G-code (?).
 
 ## Contributing
 

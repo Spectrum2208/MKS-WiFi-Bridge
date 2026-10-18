@@ -49,7 +49,7 @@ _LAYER_MARK = re.compile(rb";LAYER_CHANGE|;LAYER:\d+")   # те же метки,
 
 
 def outline_gcode(path):
-    """-> (слои, высоты слоёв). В слое — линии внешних стенок. Если стенок в слое нет (калибровки Orca рисуют
+    """-> (слои, высоты слоёв, все линии слоёв). В слое — линии внешних стенок. Если стенок в слое нет (калибровки Orca рисуют
     линии как ;TYPE:Custom), берём все линии слоя. Нет меток слоёв вовсе — весь файл считается одним слоем."""
     walls, other, zs = [], [], []
     cw = co = poly = target = None
@@ -140,9 +140,10 @@ def outline_gcode(path):
                 x, y, z, e = w.get("X", x), w.get("Y", y), w.get("Z", z), w.get("E", e)
     close()
     layers = [cw if cw else [_thin(p, 4) for p in co] for cw, co in zip(walls, other)]
+    detail = [cw + co for cw, co in zip(walls, other)]   # текущий слой в панели — со всеми линиями (заливка, стенки)
     if not typed:   # слайсер не размечает типы линий: взяли всё подряд, проредим погрубее
         layers = [[_thin(p, 10) for p in lay] for lay in layers]
-    return layers, zs
+    return layers, zs, detail
 
 
 def _thin(p, step):

@@ -35,6 +35,9 @@ function applyTheme(){const t=lsGet('mks_theme')||'auto';t==='auto'?document.doc
   $('#thm').title='Тема: '+TN[t]+' (нажми, чтобы сменить)';drawChart()}
 function cycleTheme(){const n={auto:'dark',dark:'light',light:'auto'}[lsGet('mks_theme')||'auto'];lsSet('mks_theme',n);applyTheme();toast('Тема: '+TN[n])}
 // ---- статус
+// время окончания по часам компьютера: «21:40», «завтра 03:15»
+function finAt(eta){const d=new Date(Date.now()+eta*1000),n=new Date(),dd=Math.round((new Date(d).setHours(0,0,0,0)-new Date(n).setHours(0,0,0,0))/864e5);
+  return(dd===1?'завтра ':dd>1?d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'})+' ':'')+d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}
 function fmt(s){if(s==null)return'—';s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+' ч ':'')+m+' мин'}
 function ttH(a){return a?'<span>'+a[0].toFixed(0)+'</span><i> / '+a[1].toFixed(0)+'°</i>':'—'}
 function tt(a){return a?a[0].toFixed(0)+' / '+a[1].toFixed(0)+'°':'—'}
@@ -43,14 +46,14 @@ async function tick(){
   if(document.hidden)return;
   const s=await api('/api/status?win='+RANGE);
   if(s.bridge!==false)$('#ip').textContent=s.ip||'не задан';
-  const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':(s.state||'—')+(s.stale?' …':'')):s.bridge===false?'мост выключен':'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
+  const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':s.heating?'НАГРЕВ':(s.state||'—')+(s.stale?' …':'')):s.bridge===false?'мост выключен':'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
   $('#nozzle').innerHTML=ttH(s.nozzle);$('#bed').innerHTML=ttH(s.bed);
   // в пустом поле серым — текущая цель, как в Mainsail/OctoPrint: вписал поверх, Enter
   $('#tn').placeholder=s.nozzle?s.nozzle[1].toFixed(0):'';$('#tb').placeholder=s.bed?s.bed[1].toFixed(0):'';
   $('#prog').style.width=(s.progress||0)+'%';$('#progtxt').textContent=s.progress!=null?s.progress+'%':'—';
   $('#layer').textContent=s.layers?(s.layer_exact?'':'≈ ')+s.layer+' / '+s.layers:'—';
   $('#zv').textContent=s.pos&&s.pos.z!=null?s.pos.z.toFixed(2)+' мм':'—';
-  $('#elapsed').textContent=fmt(s.elapsed);$('#eta').textContent=s.eta!=null?'≈ '+fmt(s.eta):'—';
+  $('#elapsed').textContent=fmt(s.elapsed);$('#eta').textContent=s.eta!=null?'≈ '+fmt(s.eta):'—';$('#fin').textContent=s.eta!=null?'· до '+finAt(s.eta):'';
   // начало печати: прошивка ждёт нагрева (M190/M109) и на координаты не отвечает — пишем, что происходит
   const warm=(k,n)=>{const t=s[k];return t&&t[1]>0&&t[0]<t[1]-2?'Нагрев '+n+': '+t[0].toFixed(0)+' → '+t[1].toFixed(0)+'°':''};
   const heat=/PRINT/.test(s.state||'')&&(s.progress||0)<1?warm('bed','стола')||warm('nozzle','сопла'):'';
@@ -347,7 +350,7 @@ function buildTwin(){
    '<rect id="tBed" x="'+ox+'" y="'+oy+'" width="'+bw+'" height="'+bh+'" rx="4" fill="#64748b" fill-opacity=".9" style="stroke:var(--mut)"/>'+grid+
    '<circle cx="'+ox+'" cy="'+(oy+bh)+'" r="2.5" style="fill:var(--fg)"/>'+
    '<g id="tModel" transform="translate('+ox+','+(oy+bh)+') scale('+(sc/10)+','+(-sc/10)+')" style="display:none;pointer-events:none">'+
-    '<path id="tGhost" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path id="tLayH" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#000" stroke-opacity=".45" stroke-width="3.2"/>'+
+    '<path id="tGhost" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-opacity=".22" stroke-width="1"/><path id="tLayF" fill="#fff" fill-opacity=".22" fill-rule="evenodd" stroke="none"/><path id="tLayD" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-opacity=".6" stroke-width="1"/><path id="tLayH" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#000" stroke-opacity=".45" stroke-width="3.2"/>'+
     '<path id="tLay" vector-effect="non-scaling-stroke" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="#fff" stroke-width="1.6"/></g>'+
    '<g id="tGant">'+[-1,1].map(d=>'<rect x="'+rl+'" y="'+((d*18-4)*sc)+'" width="'+(rr-rl)+'" height="'+(8*sc)+'" rx="'+(4*sc)+'" '+rod+' opacity=".9"/>').join('')+
    [rl,rr].map(x=>'<rect x="'+(x-8*sc)+'" y="'+(-26*sc)+'" width="'+(16*sc)+'" height="'+(52*sc)+'" rx="2" style="fill:var(--bd);stroke:var(--mut)" stroke-width="1"/>').join('')+'</g>'+
@@ -481,8 +484,10 @@ function updateTwin(s){
   if(f!=null&&document.activeElement!==$('#fanr')){$('#fanr').value=f;fanLabel()}
   if(p&&p.e!=null)setE(p.e);updateModel(s)}
 // ---- модель на столе во время печати: контур текущего слоя сверху, силуэт с напечатанной частью спереди
-let OL={id:null,sum:null,layer:0,cur:'',ghost:'',show:false};
+let OL={id:null,sum:null,layer:0,cur:'',fill:'',det:'',ghost:'',show:false};
 const polyD=ps=>ps.map(p=>'M'+p[0]+' '+p[1]+'L'+p.slice(2).join(' ')).join('');
+// заливка слоя: только замкнутые контуры (разомкнутые дали бы ложные перепонки); дыры — по правилу evenodd
+const fillD=ps=>ps.filter(p=>p.length>=8&&Math.abs(p[0]-p[p.length-2])+Math.abs(p[1]-p[p.length-1])<=8).map(p=>polyD([p])+'Z').join('');
 // силуэт спереди: каждый слой — полоска шириной с модель по X на своей высоте. Полосками, а не одним контуром:
 // при последовательной печати объектов высота сбрасывается в ноль, и следующий объект растёт заново
 function silD(upto){const s=OL.sum,d=[];
@@ -491,17 +496,17 @@ function silD(upto){const s=OL.sum,d=[];
     (typeof e[0]==='number'?[e]:e).forEach(([a,b])=>d.push('M'+a/10+' '+z0+'H'+b/10+'V'+z1+'H'+a/10+'Z'))}
   return d.join('')}
 function drawModel(){const on=OL.show&&!!OL.sum,t=$('#tModel'),f=$('#fModel');if(!t||!f)return;t.style.display=f.style.display=on?'':'none';if(!on)return;
-  $('#tGhost').setAttribute('d',OL.ghost);$('#tLay').setAttribute('d',OL.cur);$('#tLayH').setAttribute('d',OL.cur);
+  $('#tGhost').setAttribute('d',OL.ghost);$('#tLay').setAttribute('d',OL.cur);$('#tLayF').setAttribute('d',OL.fill);$('#tLayD').setAttribute('d',OL.det);$('#tLayH').setAttribute('d',OL.cur);
   $('#fSilDone').setAttribute('d',silD(OL.layer))}   // спереди только напечатанное: выше сопла модели ещё нет, там каретка
 function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').classList.toggle('printing',pr);$('#svgFront').classList.toggle('printing',pr);
   // позицию E во время печати Marlin не сообщает (слайсер подаёт пруток относительно): крутим шестерни, пока идёт печать
   const ex=$('#svgExt'),run=/PRINTING/.test(s.state||'');if(ex.classList.contains('printing')!==run){ex.classList.toggle('printing',run);renderE()}
   OL.show=pr&&!!s.outline;
-  if(OL.show&&OL.id!==s.outline){const id=s.outline;OL={id,sum:null,layer:0,cur:'',ghost:'',show:true};
+  if(OL.show&&OL.id!==s.outline){const id=s.outline;OL={id,sum:null,layer:0,cur:'',fill:'',det:'',ghost:'',show:true};
     api('/api/outline?file='+encodeURIComponent(id)).then(r=>{if(OL.id!==id||r.error)return;OL.sum=r;OL.ghost=polyD(r.ghost);drawModel()})}
   const L=s.layer||(OL.sum&&OL.sum.layers===1?1:0);   // файл без меток слоёв — один слой
   if(OL.show&&OL.sum&&L&&L!==OL.layer){OL.layer=L;const id=OL.id;
-    api('/api/outline?file='+encodeURIComponent(id)+'&layer='+L).then(r=>{if(OL.id!==id||r.error)return;OL.cur=polyD(r.polys);drawModel()})}
+    api('/api/outline?file='+encodeURIComponent(id)+'&layer='+L).then(r=>{if(OL.id!==id||r.error)return;OL.cur=polyD(r.polys);OL.det=r.lines?polyD(r.lines):'';OL.fill=OL.det?'':fillD(r.polys);drawModel()})}
   drawModel()}
 function setE(v){if(tgtE==null||Math.abs(v-visE)>60)visE=v;tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
 function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),25*dt);renderE();
@@ -575,7 +580,7 @@ function openSet(){$('#ov').classList.add('on');loadSettings()}function closeSet
 async function openLogDir(){const r=await api('/api/logdir',{});if(r.error)toast(r.error)}
 async function loadSettings(){
   const s=await api('/api/settings');if(s.error){toast(s.error);return}
-  $('#sip').value=s.printer_ip||'';$('#sow').checked=!!s.overwrite;$('#sbg').checked=!!s.background_poll;$('#smax').value=s.max_name;
+  $('#sip').value=s.printer_ip||'';markPrev(s.preview||'off');$('#sow').checked=!!s.overwrite;$('#sbg').checked=!!s.background_poll;$('#smax').value=s.max_name;
   $('#srem').checked=!!s.remote;$('#sauto').checked=!!s.autostart;$('#autorow').style.display=s.can_autostart?'':'none';$('#ver').textContent='v'+s.version;$('#logdir').hidden=!(s.local&&s.can_autostart);
   if(s.geom){GEOM=s.geom;$('#gbx').value=GEOM.bx;$('#gby').value=GEOM.by;$('#gbz').value=GEOM.bz;$('#gzb').checked=!!GEOM.z_bed;buildTwin();updateTwin(LASTS)}
   showLimits(s.limits&&s.limits.vmax);
@@ -588,7 +593,10 @@ async function newPin(){if(!await ask('Сменить PIN?','Телефоны, �
   const r=await api('/api/settings',{new_pin:true});toast(r.error||'PIN изменён');loadSettings()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('on')&&!$('#dlg').classList.contains('on'))closeSet()});
 async function saveIp(){const r=await api('/api/settings',{printer_ip:$('#sip').value});toast(r.error||'Сохранено');tick();loadSettings()}
-async function saveOpt(){const r=await api('/api/settings',{overwrite:$('#sow').checked,background_poll:$('#sbg').checked,max_name:+$('#smax').value,bed_x:+$('#gbx').value,bed_y:+$('#gby').value,bed_z:+$('#gbz').value,z_bed:$('#gzb').checked});toast(r.error||'Сохранено');loadSettings()}
+// картинка для стокового экрана MKS: off / ghost (50 и 200 px) / mks (100 и 200 px)
+function markPrev(p){document.querySelectorAll('#sprev button').forEach(b=>b.classList.toggle('on',b.dataset.p===p))}
+function setPrev(b){markPrev(b.dataset.p);saveOpt()}
+async function saveOpt(){const r=await api('/api/settings',{preview:($('#sprev .on')||{dataset:{p:'off'}}).dataset.p,overwrite:$('#sow').checked,background_poll:$('#sbg').checked,max_name:+$('#smax').value,bed_x:+$('#gbx').value,bed_y:+$('#gby').value,bed_z:+$('#gbz').value,z_bed:$('#gzb').checked});toast(r.error||'Сохранено');loadSettings()}
 async function saveRemote(){const r=await api('/api/settings',{remote:$('#srem').checked});toast(r.error||'Сохранено');loadSettings()}
 async function saveAuto(){const r=await api('/api/settings',{autostart:$('#sauto').checked});toast(r.error||'Сохранено')}
 async function findPrinter(){toast('Ищу принтер в сети…');const r=await api('/api/discover',{});

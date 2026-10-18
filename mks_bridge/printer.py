@@ -146,7 +146,8 @@ class Printer:
                 try:
                     r = self._cmd_once(commands, wait, until, poll)
                 except OSError:
-                    if not rediscover or not self.rediscover():
+                    # один опрос без ответа во время печати — обычное дело; ищем принтер в сети со второго сбоя подряд
+                    if not rediscover or not self.fails or not self.rediscover():
                         raise
                     r = self._cmd_once(commands, wait, until, poll)
                 self._after_cmd(changes)
@@ -376,11 +377,17 @@ class Printer:
             for k in ("sd", "left"):
                 if st.get(k) is None and prev.get(k) is not None and now - prev.get("good_t", 0) < 90:
                     st[k] = prev[k]
+            # когда M73 сменил значение: «Осталось» между редкими строками M73 отсчитываем сами
+            st["left_t"] = prev.get("left_t") if st.get("left") == prev.get("left") and prev.get("left_t") else now
             if st.get("sd") and not st.get("progress"):
                 st["progress"] = st["sd"][0] * 100 // st["sd"][1]
         # Экран MKS не знает о печати, запущенной не с него (M23/M24 по Wi-Fi), и сообщает «PAUSE».
         # Правду говорит позиция в файле: растёт — значит печатает.
         moved = st.get("sd_live") or (st.get("sd") and prev.get("sd") and st["sd"][0] > prev["sd"][0])
+        # позиция в файле может не приходить минуту; голова, которая ездит посреди печати, — тоже печать
+        if (not moved and prev.get("state") == "PRINTING" and not st.get("pos_stale") and st.get("pos")
+                and prev.get("pos") and st["pos"] != prev["pos"]):
+            moved = True
         st["sd_moving_t"] = now if moved else prev.get("sd_moving_t", 0)
         # На это опираются и блокировки опасных команд: модуль может сказать и «IDLE», а печать идёт.
         if st["state"] != "PRINTING" and now - st["sd_moving_t"] < 40:   # строка от Marlin бывает и раз в 20–30 с

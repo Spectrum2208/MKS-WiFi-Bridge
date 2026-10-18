@@ -34,7 +34,7 @@
 <div class="lowb">
 <div class="card" id="cCtl"><h2>Печать</h2>
  <div class="stats"><div class="big" id="progtxt">—</div><div class="sb"><div class="bar"><i id="prog"></i></div><div class="mut" id="file"></div></div></div>
- <div class="kv2"><span>Слой <b id="layer">—</b></span><span>Z <b id="zv">—</b></span><span>Прошло <b id="elapsed">—</b></span><span>Осталось <b id="eta">—</b></span></div>
+ <div class="kv2"><span>Слой <b id="layer">—</b></span><span>Z <b id="zv">—</b></span><span>Прошло <b id="elapsed">—</b></span><span>Осталось <b id="eta">—</b> <i id="fin"></i></span></div>
  <div class="mut" id="err" style="color:var(--bad)"></div>
  <div class="btnrow"><button class="bt blk" title="Пауза (M25)" onclick="cmd('M25')"><span data-i="pause" style="color:#f59e0b"></span>Пауза</button><button class="bt blk" title="Продолжить (M24)" onclick="cmd('M24')"><span data-i="play" style="color:#16a34a"></span>Пуск</button>
   <button class="bt blk" title="Стоп (M26)" onclick="cmd('M26')"><span data-i="stop" style="color:#dc2626"></span>Стоп</button></div></div>
@@ -79,6 +79,8 @@
   <div class="sc"><div class="tin sxyz"><i>X</i><input type="number" id="gbx" min="50" max="1000" onchange="saveOpt()"></div><div class="tin sxyz"><i>Y</i><input type="number" id="gby" min="50" max="1000" onchange="saveOpt()"></div><div class="tin sxyz"><i>Z</i><input type="number" id="gbz" min="50" max="1000" onchange="saveOpt()"><i>мм</i></div></div></div>
  <div class="srow"><div class="sl"><b>По Z движется стол</b><span>Как у Ghost: +Z опускает стол. Выключи, если по Z ездит головка</span></div>
   <label class="sw"><input type="checkbox" id="gzb" onchange="saveOpt()"><i></i></label></div>
+ <div class="srow"><div class="sl"><b>Картинка модели на экране</b><span>Для стоковых экранов MKS. В Orca включи эскиз, например 200x200/PNG</span></div>
+  <span class="seg" id="sprev"><button data-p="off" onclick="setPrev(this)">Нет</button><button data-p="ghost" onclick="setPrev(this)">Ghost 4S/5</button><button data-p="mks" onclick="setPrev(this)">Другие MKS</button></span></div>
  <div class="srow"><div class="sl"><b>Скорости из прошивки</b><span id="lims">Не считаны: анимация в панели едет с примерной скоростью</span></div>
   <button class="sm" onclick="loadLimits()" title="Прочитать M203/M204 командой M503">Считать</button></div>
  <div class="rg">Доступ и запуск</div>

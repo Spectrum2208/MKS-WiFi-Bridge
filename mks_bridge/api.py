@@ -17,6 +17,7 @@ from .discovery import discover, local_ip
 from .jobs import JOBS, Job, run_job
 from .printer import is_printing, sanitize_name
 from .store import LAYERS, OUTL_DIR, job_key, layer_info, outline_load, remember_started
+from .thumbs import PRESETS
 
 SAFE_WHILE_PRINTING = {"M105", "M114", "M115", "M27", "M25", "M24", "M26", "M220", "M221", "M104",
                        "M140", "M106", "M107", "M117", "M503", "M991", "M992", "M994", "M997"}
@@ -52,10 +53,17 @@ class PanelApi:
                 if li:
                     out.update(li)
                 if st.get("left") is not None:   # оставшееся время от слайсера (M73) точнее нашей оценки
-                    out["eta"] = st["left"]
+                    # M73 — целые минуты, а его строки от Marlin иногда теряются: отсчитываем от последней сами
+                    out["eta"] = max(0, st["left"] - int(time.time() - (st.get("left_t") or time.time())))
                 t0 = CFG.get("print_started") or 0
                 if not st.get("elapsed") and 0 < time.time() - t0 < 7 * 86400:   # модуль Wi-Fi тут тоже отвечает нулём
                     out["elapsed"] = int(time.time() - t0)
+                # Нагрев перед печатью: модуль говорит «PAUSE», а Marlin ещё не начал файл. Только подпись —
+                # блокировки опасных команд по-прежнему опираются на state
+                warm = [p for p in (st.get("nozzle"), st.get("bed")) if p and p[1] > 0 and p[0] < p[1] - 3]
+                if ("PRINTING" not in (st.get("state") or "") and warm and 0 < time.time() - t0 < 1800
+                        and (st.get("sd_moving_t") or 0) < t0):
+                    out["heating"] = True
                 k = job_key(st.get("file"))
                 if k and os.path.exists(os.path.join(OUTL_DIR, k + ".json")):
                     out["outline"] = k
@@ -85,7 +93,7 @@ class PanelApi:
         # адрес в сети принтера — первым: по имени компьютера телефоны часто не находят
         urls = ["http://%s:%d" % (local_ip(self.printer.ip), port), "http://%s:%d" % (socket.gethostname(), port)]
         return {"printer_ip": self.printer.ip, "max_name": CFG["max_name"], "overwrite": CFG["overwrite"],
-                "background_poll": CFG.get("background_poll", True),
+                "background_poll": CFG.get("background_poll", True), "preview": CFG.get("preview", "off"),
                 "geom": {"bx": CFG["bed_x"], "by": CFG["bed_y"], "bz": CFG["bed_z"], "z_bed": CFG["z_bed"]}, "remote": CFG["remote"], "pin": CFG["pin"] if self._local() else "",
                 "urls": urls, "autostart": autostart_get(), "version": VERSION, "limits": self.printer.limits or {},
                 "can_autostart": sys.platform == "win32", "local": self._local()}
@@ -112,8 +120,12 @@ class PanelApi:
     def _list(self):
         if self._guard_printer():
             try:
-                lst = self.printer.files()
                 busy = is_printing(self.printer._cache[1] or {})
+                if busy and CFG.get("files_seen"):
+                    # во время печати M20 приходит обрывками и держит TCP по 20 с — статус бы застыл; список не меняется
+                    self._json(200, {"files": CFG["files_seen"], "cached": True})
+                    return
+                lst = self.printer.files()
                 if lst and not self.printer.files_complete:
                     self._json(200, {"files": lst, "partial": True})
                     return
@@ -138,8 +150,10 @@ class PanelApi:
                 n = int(q["layer"][0])
             except ValueError:
                 n = 0
-            lay = d["layers"][n - 1] if 1 <= n <= len(d["layers"]) else []
-            self._json(200, {"layer": n, "polys": lay})
+            ok = 1 <= n <= len(d["layers"])
+            full = d.get("detail")
+            self._json(200, {"layer": n, "polys": d["layers"][n - 1] if ok else [],
+                             "lines": full[n - 1] if ok and full else None})
         else:
             self._json(200, {"layers": len(d["layers"]), "zs": d["zs"], "ext": d["ext"], "ghost": d["ghost"]})
 
@@ -404,6 +418,8 @@ class PanelApi:
             self.printer.overwrite = CFG["overwrite"] = bool(b["overwrite"])
         if "background_poll" in b:
             CFG["background_poll"] = bool(b["background_poll"])
+        if b.get("preview") in PRESETS or b.get("preview") == "off":
+            CFG["preview"] = b["preview"]
         CFG.update(bed)
         if "z_bed" in b:
             CFG["z_bed"] = bool(b["z_bed"])

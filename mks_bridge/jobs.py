@@ -6,10 +6,11 @@ import time
 import traceback
 from collections import deque
 
-from .config import log, notify
+from .config import CFG, log, notify
 from .gcode import index_gcode, outline_gcode
 from .printer import is_printing, sanitize_name
 from .store import LAYERS, layers_save, outline_save, remember_started
+from .thumbs import add_preview
 
 JOBS = deque(maxlen=12)
 _job_lock = threading.Lock()
@@ -56,10 +57,19 @@ def run_job(printer, path, orig_name, start, ui):
             except OSError as e:
                 raise RuntimeError("Нет связи с принтером %s (%s). Открой настройки панели и нажми «Найти принтер»."
                                    % (printer.ip, e))
+            warn = ""
+            try:  # до разбора слоёв: картинка в начале файла сдвигает позиции байтов, по которым считается прогресс
+                note = add_preview(path, CFG.get("preview"))
+                if note:
+                    log(note)
+                    if note.startswith(("нет ", "эскиз ")):
+                        warn = " (без картинки: %s)" % note
+            except Exception as ex:
+                log("картинка MKS не добавлена: %r" % (ex,))
             idx = index_gcode(path)
             try:
                 t0 = time.time()
-                outl, outl_zs = outline_gcode(path)
+                outl, outl_zs, outl_full = outline_gcode(path)
                 log("контур: %d слоёв за %.1f с" % (len(outl), time.time() - t0))
             except Exception as ex:
                 outl = None
@@ -119,10 +129,10 @@ def run_job(printer, path, orig_name, start, ui):
             LAYERS[name.lower()] = idx
             layers_save()
             if outl is not None:
-                outline_save(name, outl, idx["zs"] if len(idx["zs"]) == len(outl) else outl_zs)
+                outline_save(name, outl, idx["zs"] if len(idx["zs"]) == len(outl) else outl_zs, outl_full)
             remember_started(name)
 
-            tail = " (исходное имя: %s)" % orig_base if renamed else ""
+            tail = (" (исходное имя: %s)" % orig_base if renamed else "") + warn
             if start:
                 ui.post(("note", "Запускаю печать…"))
                 printer.start_print(name)

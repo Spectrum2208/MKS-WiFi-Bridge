@@ -38,6 +38,8 @@ def layer_info(file, progress, z, sd=None):
         eta = int(idx["est"] * (1 - frac)) if idx["est"] else None
         return {"layer": max(1, bisect.bisect_right(idx["offsets"], sd[0])), "layers": len(idx["offsets"]),
                 "eta": eta, "layer_exact": True}
+    if progress is None:   # ни позиции в файле, ни процента (нагрев перед печатью): Z остался от прошлого, не гадаем
+        return None
     n, zs = len(idx["offsets"]), idx.get("zs") or []
     lp = None if progress is None else bisect.bisect_right(idx["offsets"], idx["size"] * progress / 100.0)
     layer, exact = lp, False
@@ -55,12 +57,14 @@ def layer_info(file, progress, z, sd=None):
     return {"layer": layer, "layers": n, "eta": eta, "layer_exact": exact}
 
 
-def outline_save(name, layers, zs):
+def outline_save(name, layers, zs, detail=None):
     """Контур + сводка для панели: ширина модели по X на каждом слое (силуэт спереди) и «призрак» модели сверху."""
     ext = outline_spans(layers)
     pick = sorted({round(i * (len(layers) - 1) / 15) for i in range(16)}) if layers else []
     ghost = [_thin(p, 8) for i in pick for p in layers[i]]
     data = {"v": 1, "layers": layers, "zs": zs, "ext": ext, "ghost": ghost}
+    if detail and len(detail) == len(layers):
+        data["detail"] = detail
     try:
         os.makedirs(OUTL_DIR, exist_ok=True)
         with open(os.path.join(OUTL_DIR, name.lower() + ".json"), "w", encoding="utf-8") as f:
