@@ -152,7 +152,9 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 - английский интерфейс панели;
 - схема для принтеров с подвижным столом (дрыгостолов);
 - выбор хотэнда и экструдера в отрисовке головы;
-- движение головы и подача прутка по G-code в реальном времени (?).
+- помощник ручной калибровки стола: винты стола на схеме под разные принтеры, объезд углов по клику;
+- движение головы и подача прутка по G-code в реальном времени (?);
+- своя сборка свежего Marlin для Ghost с модулем MKS-WIFI и шейперами MZV/EI, в паре с мостом (??).
 
 ## Участие
 
@@ -330,7 +332,9 @@ No promised dates — just what I'd like to do next:
 - an English dashboard interface (it's in Russian for now);
 - a diagram for bed slinger printers (moving Y bed);
 - a choice of hotend and extruder for the print head drawing;
-- live head movement and filament feed simulated from the G-code (?).
+- a manual bed leveling helper: bed screws on the diagram for different printers, click to visit each corner;
+- live head movement and filament feed simulated from the G-code (?);
+- a fresh Marlin build for the Ghost with MKS-WIFI support and MZV/EI shapers, paired with the bridge (??).
 
 ## Contributing
 

@@ -127,6 +127,7 @@ function jobs(list){
   list.slice().reverse().forEach(j=>{
     if(seen[j.id]&&seen[j.id]!==j.state&&j.state!=='working'){toast((j.state==='done'?'✔ ':'✖ ')+j.note);if(j.state==='done'&&$('#files').children.length)loadFiles()}
     seen[j.id]=j.state;
+    if(j.age!=null&&j.age>(j.state==='error'?3600:600))return;   // старые загрузки не загромождают «Файлы»
     const d=document.createElement('div');d.className='job '+j.state;const n=document.createElement('b');n.textContent=j.name;d.appendChild(n);
     const p=j.total?Math.round(j.sent*100/j.total):0;
     if(j.state==='working'){const bar=document.createElement('div');bar.className='bar';const i=document.createElement('i');i.style.width=p+'%';bar.appendChild(i);d.appendChild(bar)}

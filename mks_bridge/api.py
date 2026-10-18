@@ -126,6 +126,10 @@ class PanelApi:
                     self._json(200, {"files": CFG["files_seen"], "cached": True})
                     return
                 lst = self.printer.files()
+                if not lst and not self.printer.files_complete and CFG.get("files_seen"):
+                    # принтер не ответил вовсе (например, греется перед печатью): это не «карта пуста»
+                    self._json(200, {"files": CFG["files_seen"], "cached": True})
+                    return
                 if lst and not self.printer.files_complete:
                     self._json(200, {"files": lst, "partial": True})
                     return

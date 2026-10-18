@@ -22,6 +22,7 @@ class Job:
         self.id = next(_job_ids)
         self.name, self.state, self.sent, self.total = name, "working", 0, 0
         self.note = "В очереди…"
+        self.end_t = None   # когда закончилась: старые карточки панель прячет
         JOBS.append(self)
 
     def post(self, m):
@@ -33,15 +34,16 @@ class Job:
         elif k == "note":
             self.note = m[1]
         elif k == "done":
-            self.state, self.note = "done", m[1]
+            self.state, self.note, self.end_t = "done", m[1], time.time()
             notify("Загрузка завершена", m[1])
         elif k == "error":
-            self.state, self.note = "error", m[1]
+            self.state, self.note, self.end_t = "error", m[1], time.time()
             notify("Ошибка загрузки", m[1])
 
     def as_dict(self):
         return {"id": self.id, "name": self.name, "state": self.state,
-                "sent": self.sent, "total": self.total, "note": self.note}
+                "sent": self.sent, "total": self.total, "note": self.note,
+                "age": int(time.time() - self.end_t) if self.end_t else None}
 
 
 def run_job(printer, path, orig_name, start, ui):
