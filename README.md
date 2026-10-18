@@ -10,7 +10,7 @@
 ## Как я докатился до жизни такой
 
 Я хотел, чтобы мой Ghost 4S принимал задания из Orca по Wi-Fi. Нашёл только [скрипт пост-обработки для PrusaSlicer](https://github.com/ArtificalSUN/MKS-WIFI_PS_uploader)
-четырёхлетней давности — спасибо его автору, с него всё началось. Решил сделать своё, под Orca и поудобнее…
+четырёхлетней давности — спасибо его автору, но по удобству и функционалу он меня не устроил. Решил сделать своё, под Orca…
 и *немножко* увлёкся: сверху появились веб-панель, живая схема принтера, модель печати, график температур
 и голова, нарисованная по чертежам E3D.
 
@@ -155,7 +155,7 @@ Send prints straight from the slicer over Wi-Fi and watch them in a web dashboar
 ## How I ended up here
 
 I wanted my Ghost 4S to take jobs from Orca over Wi-Fi. All I found was a four-year-old [post-processing script for PrusaSlicer](https://github.com/ArtificalSUN/MKS-WIFI_PS_uploader)
-— thanks to its author, that's where it all started. I decided to build my own, for Orca and a bit nicer…
+— thanks to its author, but it didn't suit me in convenience or features. I decided to build my own, for Orca…
 and got *slightly* carried away: on top came a web dashboard, a live printer diagram, the print model, a temperature chart
 and a print head drawn from E3D's technical drawings.
 
