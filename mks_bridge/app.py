@@ -159,7 +159,7 @@ def main():
                 cfg_save()
                 log("первый запуск: принтер найден %s" % found[0])
         threading.Thread(target=first_scan, daemon=True).start()
-    if first_run and not a.no_browser:
+    if not a.no_browser:   # запустили руками (двойной клик по exe) — сразу показать панель; автозапуск идёт с --no-browser
         webbrowser.open(url)
 
     if a.no_tray or not run_tray(url):

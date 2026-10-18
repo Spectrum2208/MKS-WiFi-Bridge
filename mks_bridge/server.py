@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import re
+import socket
 import socketserver
 import sys
 import time
@@ -17,7 +18,13 @@ from .octoprint import OctoPrintApi
 
 class QuietServer(ThreadingHTTPServer):
     """Браузер часто обрывает соединение (закрыли вкладку, обновили страницу): это не ошибка, трассировку не печатаем."""
+    # На Windows SO_REUSEADDR (по умолчанию у HTTPServer) пускает второй процесс на тот же порт: две копии моста
+    # работали бы одновременно. Там нужен эксклюзивный порт — тогда второй запуск получит ошибку и откроет панель первого.
+    allow_reuse_address = sys.platform != "win32"
+
     def server_bind(self):
+        if sys.platform == "win32":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         # Стандартный HTTPServer здесь спрашивает у DNS полное имя компьютера (getfqdn). Через VPN или при медленном DNS
         # это висит десятки секунд, и мост не стартует. Имя серверу не нужно — только открываем порт.
         socketserver.TCPServer.server_bind(self)
