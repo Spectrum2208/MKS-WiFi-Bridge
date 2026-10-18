@@ -56,7 +56,7 @@ python run_bridge.py
 
 2. **Тип хоста:** `Octo/Klipper`.
 3. **Имя хоста, IP/URL-адрес:** `http://127.0.0.1:5000`.
-4. **API-ключ:** любой непустой текст, например `mks`.
+4. **API-ключ:** любой непустой текст, например `2208`.
 5. Нажмите «Тест».
 
    <img src="docs/img/orca-2-host.png" width="560" alt="Окно «Физический принтер» в Orca">
@@ -203,7 +203,7 @@ The screenshots show Orca in Russian; the numbers match the steps.
 
 2. **Host type:** `Octo/Klipper`.
 3. **Hostname, IP or URL:** `http://127.0.0.1:5000`.
-4. **API key:** any non-empty text, e.g. `mks`.
+4. **API key:** any non-empty text, e.g. `2208`.
 5. Click "Test".
 
    <img src="docs/img/orca-2-host.png" width="560" alt="Physical printer window in Orca">
