@@ -94,7 +94,7 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
 
     def _cookie_ok(self):
         m = re.search(r"mks_pin=(\d+)", self.headers.get("Cookie", ""))
-        return bool(m and CFG["remote"] and CFG["pin"] and hmac.compare_digest(m.group(1), CFG["pin"]))
+        return bool(m and CFG["remote"] and CFG["pin"] and hmac.compare_digest(m.group(1).encode(), CFG["pin"].encode()))
 
     def _gate(self, page=False):
         if self._local():
@@ -193,10 +193,11 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
             self._send(429, "Слишком много попыток, подожди 5 минут.", "text/plain")
             return
         pin = parse_qs(self._body().decode(errors="ignore")).get("pin", [""])[0].strip()
-        if CFG["remote"] and CFG["pin"] and hmac.compare_digest(pin, CFG["pin"]):
+        # сравнение байтами: str-версия compare_digest падает на не-ASCII вводе
+        if CFG["remote"] and CFG["pin"] and hmac.compare_digest(pin.encode(), CFG["pin"].encode()):
             FAILS.pop(ip, None)
             self._send(302, "", "text/plain", {"Location": "/", "Set-Cookie":
-                       "mks_pin=%s; Path=/; Max-Age=31536000; SameSite=Strict" % pin})
+                       "mks_pin=%s; Path=/; Max-Age=31536000; SameSite=Strict; HttpOnly" % pin})   # JS cookie не читает
         else:
             FAILS[ip] = (n + 1, t0)
             self._send(200, web_file("login.html").replace("<!--err-->", "<p class=e>Неверный PIN</p>"), "text/html")
