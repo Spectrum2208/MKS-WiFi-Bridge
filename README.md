@@ -35,7 +35,7 @@
 - Перемещение кликом по схеме, шаг 0,1–50 мм, парковка, отключение моторов.
 - Нагрев и остывание, подача и втягивание прутка, обдув 0–100 %.
 - Файлы на карте: список, печать, удаление.
-- G-code консоль с историей и справочником из 39 команд Marlin и MKS (я посчитал).
+- G-code консоль с историей и справочником из 52 команд Marlin и MKS (я посчитал).
 
 ### Работа с MKS-WIFI
 - Учёт устаревших ответов модуля во время печати: состояние, прогресс и температуры берутся у Marlin.
@@ -233,7 +233,7 @@ and a print head drawn from E3D's technical drawings.
 - Click-to-move on the diagram, 0.1–50 mm steps, homing, motors off.
 - Heating and cooling, filament feed and retract, fan 0–100 %.
 - SD card files: list, print, delete.
-- G-code console with history and a reference of 39 Marlin and MKS commands (yes, I counted).
+- G-code console with history and a reference of 52 Marlin and MKS commands (yes, I counted).
 
 ### MKS-WIFI handling
 - Stale module replies during a print are accounted for: state, progress and temperatures come from Marlin.
