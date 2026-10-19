@@ -14,9 +14,13 @@
 и *немножко* увлёкся: сверху появились веб-панель, живая схема принтера, модель печати, график температур
 и голова, нарисованная по чертежам E3D.
 
+Уже потом выяснилось, что в Orca есть и встроенный хост «MKS». Но он только отправляет файл и запускает печать:
+без проверки, что файл записался на карту, и без какого-либо наблюдения за принтером. Так что мост не зря.
+
 ## Возможности
 
 ### Печать из OrcaSlicer
+- Отличие от встроенного в Orca хоста «MKS»: тот только заливает файл и через 1,5 с запускает печать — без проверки, что файл записан, без повторов, транслита и панели.
 - Эмуляция OctoPrint API: в Orca тип хоста Octo/Klipper, без плагинов и скриптов пост-обработки.
 - Заливка по HTTP: до 3 попыток, проверка файла на карте, удаление недокачанного.
 - Запуск печати сразу после заливки.
@@ -212,9 +216,13 @@ I wanted my Ghost 4S to take jobs from Orca over Wi-Fi. All I found was a four-y
 and got *slightly* carried away: on top came a web dashboard, a live printer diagram, the print model, a temperature chart
 and a print head drawn from E3D's technical drawings.
 
+Later I found out Orca also has a built-in "MKS" host. But it only sends the file and starts the print:
+no check that the file actually landed on the SD card, and no monitoring at all. So the bridge was worth it.
+
 ## Features
 
 ### Printing from OrcaSlicer
+- Compared to Orca's built-in "MKS" host: that one only uploads and starts the print 1.5 s later — no check that the file was written, no retries, no transliteration, no dashboard.
 - OctoPrint API emulation: host type Octo/Klipper in Orca, no plugins or post-processing scripts.
 - HTTP upload: up to 3 attempts, file verified on the SD card, half-uploaded files removed.
 - Print starts right after the upload.
