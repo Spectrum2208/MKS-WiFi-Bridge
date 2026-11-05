@@ -7,7 +7,7 @@ import traceback
 from collections import deque
 
 from .config import CFG, log, notify
-from .gcode import index_gcode, outline_gcode
+from .gcode import ascii_gcode, index_gcode, outline_gcode, pad_for_mks
 from .printer import is_printing, sanitize_name
 from .store import LAYERS, layers_save, outline_save, remember_started
 from .thumbs import add_preview
@@ -60,6 +60,12 @@ def run_job(printer, path, orig_name, start, ui):
                 raise RuntimeError("Нет связи с принтером %s (%s). Открой настройки панели и нажми «Найти принтер»."
                                    % (printer.ip, e))
             warn = ""
+            try:  # до картинки и разбора слоёв: меняет длину строк, а значит и позиции байтов
+                n = ascii_gcode(path)
+                if n:
+                    log("русские буквы в %d строках G-code переведены в латиницу" % n)
+            except Exception as ex:
+                log("перевод G-code в латиницу не удался: %r" % (ex,))
             try:  # до разбора слоёв: картинка в начале файла сдвигает позиции байтов, по которым считается прогресс
                 note = add_preview(path, CFG.get("preview"))
                 if note:
@@ -68,6 +74,10 @@ def run_job(printer, path, orig_name, start, ui):
                         warn = " (без картинки: %s)" % note
             except Exception as ex:
                 log("картинка MKS не добавлена: %r" % (ex,))
+            try:  # в конец файла: позиции байтов печати не сдвигает
+                log("размер подогнан под передачу MKS-WIFI: +%d байт комментария" % pad_for_mks(path))
+            except Exception as ex:
+                log("подгонка размера не удалась: %r" % (ex,))
             idx = index_gcode(path)
             try:
                 t0 = time.time()
@@ -126,7 +136,9 @@ def run_job(printer, path, orig_name, start, ui):
             if not confirmed:
                 log("в списке M20 нет %r. Сырой ответ: %r" % (name, printer.last_raw))
                 raise RuntimeError("Все байты переданы, но файл не появился в списке принтера за 45 с. "
-                                   "Проверь экран принтера. Печать автоматически не запускаю.")
+                                   "Если принтер пискнул три раза — модуль Wi-Fi сбросился и до выключения принтера "
+                                   "по питанию заливать не будет: выключи принтер на 10 с и отправь файл ещё раз. "
+                                   "Печать автоматически не запускаю.")
             log("OK: %s залит и подтверждён" % name)
             LAYERS[name.lower()] = idx
             layers_save()

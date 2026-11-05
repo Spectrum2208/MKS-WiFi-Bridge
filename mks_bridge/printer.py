@@ -19,21 +19,32 @@ _CYR = dict(zip(
      "", "e", "yu", "ya"]))
 
 
+_PUNCT = {"—": "-", "–": "-", "«": '"', "»": '"', "„": '"', "“": '"', "”": '"', "’": "'", "…": "...", "°": "deg", "×": "x", "№": "N"}
+
+
+def translit(text):
+    """Кириллица и типографские знаки -> латиница/ASCII; прочее не-ASCII -> «?»."""
+    out = []
+    for ch in text:
+        if ord(ch) < 128:
+            out.append(ch)
+            continue
+        low = ch.lower()
+        if low in _CYR:
+            t = _CYR[low]
+            out.append(t.capitalize() if ch != low else t)
+        else:
+            out.append(_PUNCT.get(ch, "?"))
+    return "".join(out)
+
+
 def sanitize_name(name, max_len, ellipsis="~"):
     """Имя для экрана принтера: латиница, <= max_len; у длинных вырезается середина."""
     base = os.path.basename(name)
     stem, ext = os.path.splitext(base)
     if ext.lower() not in (".gcode", ".gco", ".g"):
         stem, ext = base, ".gcode"
-    out = []
-    for ch in stem:
-        low = ch.lower()
-        if low in _CYR:
-            t = _CYR[low]
-            out.append(t.capitalize() if ch != low else t)
-        else:
-            out.append(ch)
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", "".join(out)).strip("_.") or "model"
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", translit(stem)).strip("_.") or "model"
     budget = max(len(ellipsis) + 2, max_len - len(ext))
     if len(stem) > budget:
         keep = budget - len(ellipsis)

@@ -1,5 +1,6 @@
 """Разбор G-code: начала слоёв, оценка времени, команды обдува и контуры внешних стенок."""
 import math
+import os
 import re
 
 def parse_duration(txt):
@@ -167,3 +168,48 @@ def outline_spans(layers):
                 merged.append([a0, a1])
         ext.append(merged)
     return ext
+
+
+MKS_TAIL = 955   # остаток размера по модулю 1024, при котором заливка проходит (проверено 2026-11-01)
+
+
+def pad_for_mks(path):
+    """Дописать в конец комментарий так, чтобы размер файла по модулю 1024 был MKS_TAIL.
+    Модуль MKS-WIFI передаёт файл плате пакетами по 1024 байта и при неудачном последнем пакете
+    (остаток около 400 байт) теряет конец: три писка, «Upload failed», модуль сбрасывается и потом
+    не заливает ничего до выключения принтера. Возвращает число дописанных байт."""
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        f.seek(max(0, size - 1))
+        pre = b"" if f.read(1) in (b"\n", b"") else b"\n"
+    n = (MKS_TAIL - size - len(pre)) % 1024
+    if n < 2:
+        n += 1024
+    pad, left = [], n
+    while left:
+        k = min(80, left) if left != 81 else 40     # строки по 80 байт; хвост из одного байта не оставляем
+        pad.append(b";" + b"-" * (k - 2) + b"\n" if k >= 2 else b"\n")
+        left -= k
+    with open(path, "ab") as f:
+        f.write(pre + b"".join(pad))
+    return len(pre) + n
+
+
+def ascii_gcode(path):
+    """Русские буквы в G-code (комментарии стартового/конечного кода, M117) -> латиница.
+    Сочетание UTF-8 и картинки MKS модуль Wi-Fi иногда не записывает на карту: заливка «проходит»
+    ({"err":0}), а файла нет. Только ASCII — надёжно. Возвращает число изменённых строк или 0."""
+    from .printer import translit
+    with open(path, "rb") as f:
+        data = f.read()
+    if data.isascii():
+        return 0
+    lines = data.split(b"\n")
+    changed = 0
+    for i, line in enumerate(lines):
+        if not line.isascii():
+            lines[i] = translit(line.decode("utf-8", "replace")).encode("ascii", "replace")
+            changed += 1
+    with open(path, "wb") as f:
+        f.write(b"\n".join(lines))
+    return changed
