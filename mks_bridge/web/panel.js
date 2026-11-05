@@ -234,7 +234,7 @@ let ESTEP=5;
 $('#esteps').innerHTML=[1,5,10,50].map(s=>'<button data-s="'+s+'" onclick="setEStep('+s+')">'+s+'</button>').join('');
 function setEStep(s){ESTEP=s;document.querySelectorAll('#esteps button').forEach(b=>b.classList.toggle('on',+b.dataset.s===s))}setEStep(5);
 async function ex(sign){const d=sign*ESTEP;log('> пруток '+(d>0?'+':'')+d+' мм');const r=await api('/api/extrude',{dist:d});
-  if(r.error){log(r.error,'#ef5350');return}log(r.reply||'(отправлено)');const m=/E:\s*(-?[\d.]+)/.exec(r.reply||'');setE(m?parseFloat(m[1]):(tgtE||0)+d);tick()}
+  if(r.error){log(r.error,'#ef5350');return}log(r.reply||'(отправлено)');setE((tgtE==null?visE:tgtE)+d);tick()}
 function tab(n){$('#pLog').hidden=n!=='log';$('#pRef').hidden=n!=='ref';$('#clr').style.visibility=n==='log'?'visible':'hidden';document.querySelectorAll('.tb').forEach(b=>b.classList.toggle('on',b.dataset.t===n))}
 function fanLabel(){const r=$('#fanr'),v=r.value;$('#fanv').textContent=v+'%';if(r.style&&r.style.setProperty)r.style.setProperty('--v',v+'%')}
 async function setFan(){const v=+$('#fanr').value;log('> обдув '+v+'%');const r=await api('/api/fan',{percent:v});r.error?log(r.error,'#ef5350'):log(r.reply||'(отправлено)');tick()}
@@ -432,7 +432,8 @@ function buildTwin(){
 // ---- плавное движение каретки и стола: на экране едут с реальной скоростью (≈100 мм/с по XY, 25 мм/с по Z), но любой переезд укладывается в ~1.5 с
 let ANIM=true,CUR=null,TGTP=null,MOTION=null,posRaf=0,posT=0,HOLD=0,HOMING=0,LASTGOOD=Date.now(),EVER=false,LIM={x:null,y:null,z:null},LIMTRIED=false;
 const T0=Date.now();
-function renderPos(){if(!TW||!FR||!CUR)return;const g=GEOM,c=CUR,px=TW.ox+c.x*TW.s,py=TW.oy+(g.by-c.y)*TW.s,fx=FR.l+(c.x/g.bx)*FR.bw;
+// пока принтер ни разу не сообщил положение (нагрев, парковка) — голова в центре, стол у сопла (Z 0), а не в начале координат SVG
+function renderPos(){if(!TW||!FR)return;const g=GEOM,c=CUR||{x:g.bx/2,y:g.by/2,z:0},px=TW.ox+c.x*TW.s,py=TW.oy+(g.by-c.y)*TW.s,fx=FR.l+(c.x/g.bx)*FR.bw;
   $('#tHead').setAttribute('transform','translate('+px+','+py+')');$('#tGant').setAttribute('transform','translate(0,'+py+')');
   $('#fHead').setAttribute('transform','translate('+fx+',0)');$('#fGantry').setAttribute('transform','translate(0,'+frontDy(c.z)+')');
   $('#fBedG').setAttribute('transform','translate(0,'+bedYAt(c.z)+')')}
@@ -500,7 +501,7 @@ function updateTwin(s){
   const f=s.fan;$('#fanv').textContent=f==null?'—':f+'%';
   const bl=$('#eBlades');bl.style.animationPlayState=f>0?'running':'paused';bl.style.animationDuration=(f>0?(1.6-1.45*f/100):1)+'s';
   if(f!=null&&document.activeElement!==$('#fanr')){$('#fanr').value=f;fanLabel()}
-  if(p&&p.e!=null)setE(p.e);updateModel(s)}
+  updateModel(s)}
 // ---- модель на столе во время печати: контур текущего слоя сверху, силуэт с напечатанной частью спереди
 let OL={id:null,sum:null,layer:0,cur:'',fill:'',det:'',ghost:'',show:false};
 const polyD=ps=>ps.map(p=>'M'+p[0]+' '+p[1]+'L'+p.slice(2).join(' ')).join('');
@@ -518,7 +519,7 @@ function drawModel(){const on=OL.show&&!!OL.sum,t=$('#tModel'),f=$('#fModel');if
   $('#fSilDone').setAttribute('d',silD(OL.layer))}   // спереди только напечатанное: выше сопла модели ещё нет, там каретка
 function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').classList.toggle('printing',pr);$('#svgFront').classList.toggle('printing',pr);
   // позицию E во время печати Marlin не сообщает (слайсер подаёт пруток относительно): крутим шестерни, пока идёт печать
-  const ex=$('#svgExt'),run=/PRINTING/.test(s.state||'');if(ex.classList.contains('printing')!==run){ex.classList.toggle('printing',run);renderE()}
+  const n=s.nozzle,hot=!!(n&&n[1]>=170&&n[0]>=n[1]-5),ex=$('#svgExt'),run=/PRINTING/.test(s.state||'')&&!s.heating&&(s.layer!=null?s.layer>=1:hot);if(ex.classList.contains('printing')!==run){ex.classList.toggle('printing',run);renderE()}   // в нагреве и стартовом коде шестерни не крутим
   OL.show=pr&&!!s.outline;
   if(OL.show&&OL.id!==s.outline){const id=s.outline;OL={id,sum:null,layer:0,cur:'',fill:'',det:'',ghost:'',show:true};
     api('/api/outline?file='+encodeURIComponent(id)).then(r=>{if(OL.id!==id||r.error)return;OL.sum=r;OL.ghost=polyD(r.ghost);drawModel()})}
@@ -526,8 +527,9 @@ function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').cl
   if(OL.show&&OL.sum&&L&&L!==OL.layer){OL.layer=L;const id=OL.id;
     api('/api/outline?file='+encodeURIComponent(id)+'&layer='+L).then(r=>{if(OL.id!==id||r.error)return;OL.cur=polyD(r.polys);OL.det=r.lines?polyD(r.lines):'';OL.fill=OL.det?'':fillD(r.polys);drawModel()})}
   drawModel()}
-function setE(v){if(tgtE==null||Math.abs(v-visE)>60)visE=v;tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
-function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),25*dt);renderE();
+// анимация подачи — по нажатой кнопке, а не по E из M114: E сразу показывает конечную точку, а слайсер его обнуляет (G92 E0)
+function setE(v){tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
+function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),5*dt);renderE();   // 5 мм/с = F300 у /api/extrude
   eRaf=Math.abs(tgtE-visE)>.005?requestAnimationFrame(animE):0}
 function renderE(){if($('#svgExt').classList.contains('printing')){$('#eE').textContent='E по G-code';return}
   const a=visE*HOB_DEG,rot=(id,d)=>{const e=$(id);if(e)e.setAttribute('transform','rotate('+d.toFixed(2)+')')};
