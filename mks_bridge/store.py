@@ -4,7 +4,7 @@ import json
 import os
 import re
 
-from .config import CFG, LAYERS_PATH, OUTL_DIR, cfg_save, log
+from .config import CFG, LAYERS_PATH, OUTL_DIR, cfg_save, log, write_json
 from .gcode import _thin, outline_spans
 
 LAYERS = {}   # имя файла на принтере (lower) -> {"size", "offsets", "est"}
@@ -19,11 +19,18 @@ def layers_load():
         pass
 
 
+def layers_put(name, idx):
+    """Запомнить слои залитого файла. Перезалитый файл встаёт в конец очереди: храним 30 последних залитых."""
+    LAYERS.pop(name.lower(), None)
+    LAYERS[name.lower()] = idx
+    for old in list(LAYERS)[:-30]:
+        del LAYERS[old]
+    layers_save()
+
+
 def layers_save():
-    data = {k: LAYERS[k] for k in list(LAYERS)[-30:]}
     try:
-        with open(LAYERS_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        write_json(LAYERS_PATH, dict(LAYERS))
     except OSError:
         pass
 
@@ -91,7 +98,7 @@ def outline_load(key):
                 d["ext"] = outline_spans(d["layers"])
             OUTL_CACHE.clear()
             OUTL_CACHE[key] = d
-        except (OSError, ValueError):
+        except (OSError, ValueError, KeyError, TypeError):   # файла нет или он испорчен
             return None
     return OUTL_CACHE[key]
 

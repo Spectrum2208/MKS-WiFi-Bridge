@@ -2,6 +2,8 @@
 from email.parser import BytesParser
 from email.policy import HTTP as HTTP_POLICY
 
+from .i18n import tr
+
 
 class OctoPrintApi:
     def _octo_version(self):
@@ -15,11 +17,14 @@ class OctoPrintApi:
 
     def _orca_upload(self):
         if not self.headers.get("X-Api-Key"):
-            self._json(403, {"error": "В Orca укажи любой непустой API-ключ."})
+            self._json(403, {"error": tr("err.api_key")})
             return
         body = self._body()
-        msg = BytesParser(policy=HTTP_POLICY).parsebytes(
-            b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + body)
+        ctype = self.headers.get("Content-Type") or ""
+        if not ctype.lower().startswith("multipart/"):
+            self._json(400, {"error": "no file in request"})
+            return
+        msg = BytesParser(policy=HTTP_POLICY).parsebytes(b"Content-Type: " + ctype.encode() + b"\r\n\r\n" + body)
         fname, data, start = None, None, False
         for part in msg.iter_parts():
             pname = part.get_param("name", header="content-disposition")

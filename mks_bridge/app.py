@@ -13,9 +13,43 @@ from . import VERSION
 from .api import ACTIVITY, APP
 from .config import CFG, NOTIFY, cfg_load, cfg_save, log
 from .discovery import discover
+from .i18n import tr
 from .printer import Printer, is_printing
-from .server import WEB_DIR, make_server
+from .server import WEB_DIR, bind_host, make_server
 from .store import STATE, layers_load
+
+SRV = {"srv": None}
+_rebind_lock = threading.Lock()
+
+
+def serve(printer, host=None):
+    srv = make_server(printer, CFG["port"], host)
+    SRV["srv"] = srv
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True).start()
+
+
+def rebind(printer):
+    """Доступ с телефона включили или выключили: порт надо открыть заново — всем в сети или только этому компьютеру."""
+    time.sleep(1.5)   # панель после сохранения сразу перечитывает настройки: пусть успеет на прежнем адресе
+    with _rebind_lock:
+        old = SRV["srv"]
+        want, was = bind_host(), old.server_address[0]
+        if want == was:
+            return
+        old.shutdown()
+        old.server_close()
+        for host in (want, was):   # не вышло на новом адресе — возвращаемся на прежний: мост не должен остаться без порта
+            for _ in range(40):
+                old.drop_clients()   # пока живы прежние соединения, Windows не отдаёт порт
+                try:
+                    serve(printer, host)
+                    log("панель теперь слушает %s:%d" % (host, CFG["port"]))
+                    return
+                except OSError as e:
+                    err = e
+                    time.sleep(0.25)
+            log("не удалось открыть порт на %s: %s" % (host, err))
+        show_error(tr("app.rebind_failed", port=CFG["port"]))
 
 def sampler(printer):
     """Фоновый опрос: график непрерывен, даже когда панель закрыта. Быстро при открытой панели, редко без неё."""
@@ -58,8 +92,8 @@ def run_tray(url):
     except Exception:
         return False
     icon = pystray.Icon("mks_bridge", img, "MKS WiFi Bridge", pystray.Menu(
-        pystray.MenuItem("Открыть панель", lambda icon, item: webbrowser.open(url), default=True),
-        pystray.MenuItem("Выход", lambda icon, item: icon.stop())))
+        pystray.MenuItem(lambda item: tr("tray.open"), lambda icon, item: webbrowser.open(url), default=True),
+        pystray.MenuItem(lambda item: tr("tray.quit"), lambda icon, item: icon.stop())))
     NOTIFY[0] = lambda title, text: icon.notify(text, title)
     APP["stop"] = icon.stop
     icon.run()
@@ -135,19 +169,17 @@ def main():
 
     url = "http://127.0.0.1:%d" % CFG["port"]
     try:
-        srv = make_server(printer, CFG["port"])
+        serve(printer)
     except OSError:
         if bridge_running(CFG["port"]):
             print("Мост уже запущен. Открываю панель.")
             webbrowser.open(url)
         else:
-            msg = ("Порт %d занят другой программой, мост не может запуститься.\n\n"
-                   "Запустите мост с другим портом, например: MKSBridge.exe --port 5001,\n"
-                   "и укажите этот порт в настройках принтера в Orca (http://127.0.0.1:5001)." % CFG["port"])
+            msg = tr("app.port_busy", port=CFG["port"])
             log(msg.replace("\n", " "))
             show_error(msg)
         return
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    APP["rebind"] = lambda: threading.Thread(target=rebind, args=(printer,), daemon=True).start()
     threading.Thread(target=sampler, args=(printer,), daemon=True).start()
     print("MKS WiFi Bridge %s: %s" % (VERSION, url))
 

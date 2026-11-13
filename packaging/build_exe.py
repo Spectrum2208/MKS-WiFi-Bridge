@@ -24,6 +24,7 @@ PyInstaller.__main__.run([
     "--windowed",                                   # без окна консоли: управление — значок в трее и веб-панель
     "--icon", os.path.join("packaging", "icon.ico"),
     "--add-data", os.path.join("mks_bridge", "web") + os.pathsep + os.path.join("mks_bridge", "web"),
+    "--add-data", os.path.join("mks_bridge", "lang") + os.pathsep + os.path.join("mks_bridge", "lang"),   # языковые файлы
     "--hidden-import", "pystray._win32",
     "--noconfirm",
     "--clean",

@@ -11,6 +11,7 @@ from urllib.parse import quote
 
 from .config import CFG, cfg_save, log, notify
 from .discovery import discover
+from .i18n import tr
 
 _CYR = dict(zip(
     "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
@@ -196,7 +197,7 @@ class Printer:
             log("принтер переехал: %s -> %s" % (self.ip, found[0]))
             self.ip = found[0]
             self.on_ip_change(self.ip)
-            notify("MKS WiFi Bridge", "Принтер нашёлся по новому адресу: " + self.ip)
+            notify("MKS WiFi Bridge", tr("notify.moved", ip=self.ip))
             return True
         return False
 
@@ -205,7 +206,7 @@ class Printer:
         шлём G28 и сразу M114 и держим соединение — ответ на M114 придёт ровно в момент окончания парковки.
         Пока ждём, прошивка каждые 2 с присылает «busy: processing»; тишина 15 с — значит связь пропала."""
         if self.homing:
-            raise RuntimeError("Принтер уже паркуется.")
+            raise RuntimeError(tr("err.already_homing"))
         self.homing = True
         started, err = threading.Event(), []
 
@@ -307,13 +308,13 @@ class Printer:
         last = lambda rx: (re.findall(rx, text) or [None])[-1]
         st = {"state": "unknown", "progress": None, "nozzle": None, "bed": None,
               "elapsed": None, "file": None, "pos": None, "sd": None, "left": None}
-        m = re.search(r"M997\s+([A-Z ]+)", text)
+        m = last(r"M997\s+([A-Z ]+)")
         if m:
-            st["state"] = m.group(1).strip()
-        m = re.search(r"M27\s+(\d+)", text)
+            st["state"] = m.strip()
+        m = last(r"M27\s+(\d+)")
         if m:
-            st["progress"] = int(m.group(1))
-        m = last(r"T:\s*([\d.]+)\s*/\s*([\d.]+)\s+B:\s*([\d.]+)\s*/\s*([\d.]+)")
+            st["progress"] = int(m)
+        m = last(r"T:\s*(-?[\d.]+)\s*/\s*([\d.]+)\s+B:\s*(-?[\d.]+)\s*/\s*([\d.]+)")   # минус: оборванный датчик
         if m:
             st["nozzle"] = (float(m[0]), float(m[1]))
             st["bed"] = (float(m[2]), float(m[3]))
@@ -322,17 +323,22 @@ class Printer:
         if m and int(m[1]):
             st["sd"] = (int(m[0]), int(m[1]))
             st["sd_live"] = True   # эту строку Marlin выдаёт только во время печати; на паузе — «Not SD printing»
+        # Ответы идут по порядку: «Not SD printing» после последней позиции в файле — Marlin файл больше не печатает
+        # (печать кончилась или стоит на паузе), и ждать, пока «печать» сама сойдёт через 40 с, незачем (см. _merge).
+        if text.rfind("Not SD printing") > text.rfind("SD printing byte"):
+            st["sd_stopped"] = True
+            st.pop("sd_live", None)
         if st["progress"] == 0 and (is_printing(cached) or is_printing(st)):
             st["progress"] = None  # «M27 0» от модуля во время печати ничего не значит: ждём данных от Marlin
         m = last(r"M73 Progress: (\d+)%(?:; Time left: (\d+)m)?")
         if m and m[1]:
             st["left"] = int(m[1]) * 60
-        m = re.search(r"M992\s+(\d+):(\d+):(\d+)", text)
+        m = last(r"M992\s+(\d+):(\d+):(\d+)")
         if m:
-            st["elapsed"] = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-        m = re.search(r"M994\s+/?([^\r\n;]+\.(?:gcode|gco|gc|g))", text, re.I)
+            st["elapsed"] = int(m[0]) * 3600 + int(m[1]) * 60 + int(m[2])
+        m = last(r"(?i)M994\s+/?([^\r\n;]+\.(?:gcode|gco|gc|g))")
         if m:
-            st["file"] = m.group(1).strip()
+            st["file"] = m.strip()
         # после координат Marlin пишет «Count X:.. Y:.. Z:..» — это счётчики шагов моторов, их пропускаем
         m = last(r"(?<!Count )X:\s*(-?[\d.]+)\s+Y:\s*(-?[\d.]+)\s+Z:\s*(-?[\d.]+)(?:\s+E:\s*(-?[\d.]+))?")
         if m:
@@ -370,6 +376,8 @@ class Printer:
         if got:
             st["good_t"] = now
         if not prev:
+            if st.get("sd_live"):   # первый опрос после запуска моста посреди печати: модулю на слово не верим и тут
+                st["sd_moving_t"], st["state"] = now, "PRINTING"
             return st
         if not got:
             old = dict(prev)
@@ -399,7 +407,14 @@ class Printer:
         if (not moved and prev.get("state") == "PRINTING" and not st.get("pos_stale") and st.get("pos")
                 and prev.get("pos") and st["pos"] != prev["pos"]):
             moved = True
-        st["sd_moving_t"] = now if moved else prev.get("sd_moving_t", 0)
+        if st.get("sd_stopped"):
+            st["sd_moving_t"] = 0
+        elif st.get("sd_live") and st["sd"][0] >= st["sd"][1]:
+            # Файл дочитан до конца: печать кончается. «Not SD printing» модуль MKS-WIFI сюда не пропускает (проверено
+            # на живом принтере 2026-11-11), поэтому вместо 40 с держим «печать» ещё 10 — на последние движения.
+            st["sd_moving_t"] = now - 30
+        else:
+            st["sd_moving_t"] = now if moved else prev.get("sd_moving_t", 0)
         # На это опираются и блокировки опасных команд: модуль может сказать и «IDLE», а печать идёт.
         if st["state"] != "PRINTING" and now - st["sd_moving_t"] < 40:   # строка от Marlin бывает и раз в 20–30 с
             st["state"] = "PRINTING"
@@ -417,7 +432,7 @@ class Printer:
             st = dict(self._cache[1] or {"state": "unknown", "progress": None, "nozzle": None, "bed": None,
                                          "elapsed": None, "file": None, "pos": None})
             if self.transferring:
-                st["state"] = "ЗАГРУЗКА ФАЙЛА"
+                st["state"] = tr("state.uploading")
             else:
                 st["homing"] = st["stale"] = True
             return st
@@ -433,7 +448,7 @@ class Printer:
                 old["stale"] = True
                 return old
             if now < self.fail_until:                           # после сбоя не долбимся в модуль, ждём
-                raise RuntimeError(self.last_err or "нет связи с принтером")
+                raise RuntimeError(self.last_err or tr("err.no_link"))
             gen = self._gen
             try:
                 raw = self.status(quiet)
@@ -458,25 +473,35 @@ class Printer:
         finally:
             self._status_lock.release()
 
+    def printing_now(self):
+        """Печатает ли принтер прямо сейчас — для блокировок удаления, запуска и заливки.
+        Сырой status() тут не годится: модуль на M997 может ответить IDLE при идущей печати. Спрашиваем заново через
+        status_cached, где состояние поправлено по ответам самого Marlin («SD printing byte»)."""
+        self.fail_until = 0.0   # действие пользователя: пауза после сбоя связи попытке не мешает
+        return is_printing(self.status_cached(max_age=0))
+
     def delete(self, name, _checked=False, listed=None):
-        if not _checked and is_printing(self.status()):
-            raise RuntimeError("Принтер сейчас печатает, удалять файлы нельзя.")
+        if not _checked and self.printing_now():
+            raise RuntimeError(tr("err.delete_printing"))
         listed = listed if listed is not None else self.files()
         actual = next((n for n in listed if n.lower() == name.lower()), None)
         if actual is None:
-            raise RuntimeError("Файла %r нет на принтере." % name)
+            raise RuntimeError(tr("err.no_such_file", name=name))
         for form in ("M30 %s", "M30 /%s", "M30 0:/%s"):
             self.cmd([form % actual], wait=1.0)
             time.sleep(0.8)
             if actual.lower() not in [n.lower() for n in self.files()]:
                 log("удалён %s командой %r" % (actual, form % "<имя>"))
                 return form % "<имя>"
-        raise RuntimeError("Принтер не удалил файл ни одним из вариантов M30.")
+        raise RuntimeError(tr("err.delete_failed"))
 
     def start_print(self, name):
+        reply = self.cmd(["M23 " + name], wait=1.0)
+        if re.search(r"open failed", reply, re.I):   # Marlin: «open failed, File: имя.»
+            log("M23 %s: %r" % (name, reply[:200]))
+            raise RuntimeError(tr("err.open_failed", name=name))
         CFG["print_started"] = time.time()
         cfg_save()
-        self.cmd(["M23 " + name], wait=1.0)
         time.sleep(0.5)
         self.cmd(["M24"], wait=1.0)
         self.enable_autoreport()
@@ -519,8 +544,7 @@ class Printer:
                     try:
                         conn.send(chunk)
                     except OSError as e:
-                        raise RuntimeError("соединение оборвано на %d из %d байт (%d%%): %r"
-                                           % (sent, size, sent * 100 // max(1, size), e))
+                        raise RuntimeError(tr("job.broken", sent=sent, size=size, pct=sent * 100 // max(1, size), e=repr(e)))
                     sent += len(chunk)
                     progress(sent, size)
             try:
@@ -528,7 +552,7 @@ class Printer:
                 body = resp.read()
                 log("ответ принтера на заливку: HTTP %d %r" % (resp.status, body[:200]))
                 if resp.status >= 400:
-                    raise RuntimeError("принтер ответил HTTP %d" % resp.status)
+                    raise RuntimeError(tr("job.http", code=resp.status))
             except (http.client.HTTPException, ConnectionError, socket.timeout) as e:
                 log("принтер не прислал нормальный ответ после заливки: %r" % (e,))
         finally:

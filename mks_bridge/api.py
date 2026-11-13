@@ -14,15 +14,17 @@ from . import VERSION
 from .autostart import autostart_get, autostart_set
 from .config import CFG, CFG_DIR, LOG_PATH, cfg_save, log
 from .discovery import discover, local_ip
+from .i18n import current, languages, tr
 from .jobs import JOBS, Job, run_job
 from .printer import is_printing, sanitize_name
 from .store import LAYERS, OUTL_DIR, job_key, layer_info, outline_load, remember_started
 from .thumbs import PRESETS
 
+# M112 — аварийная остановка: печать она убьёт, но ради этого её и шлют, галочку для неё не требуем
 SAFE_WHILE_PRINTING = {"M105", "M114", "M115", "M27", "M25", "M24", "M26", "M220", "M221", "M104",
-                       "M140", "M106", "M107", "M117", "M503", "M991", "M992", "M994", "M997"}
+                       "M140", "M106", "M107", "M117", "M503", "M991", "M992", "M994", "M997", "M112"}
 ACTIVITY = {"t": 0.0}   # когда последний раз открывали панель
-APP = {"stop": lambda: os._exit(0)}
+APP = {"stop": lambda: os._exit(0), "rebind": lambda: None}
 
 
 class PanelApi:
@@ -41,7 +43,7 @@ class PanelApi:
         bg = CFG.get("background_poll", True)
         out = {"ip": self.printer.ip, "online": False, "now": now, "jobs": [j.as_dict() for j in list(JOBS)]}
         if not self.printer.ip:
-            out["error"] = "IP принтера не задан: открой настройки и нажми «Найти принтер»."
+            out["error"] = tr("err.no_ip")
             out["history"] = []
             return out
         try:
@@ -96,7 +98,7 @@ class PanelApi:
                 "background_poll": CFG.get("background_poll", True), "preview": CFG.get("preview", "off"),
                 "geom": {"bx": CFG["bed_x"], "by": CFG["bed_y"], "bz": CFG["bed_z"], "z_bed": CFG["z_bed"]}, "remote": CFG["remote"], "pin": CFG["pin"] if self._local() else "",
                 "urls": urls, "autostart": autostart_get(), "version": VERSION, "limits": self.printer.limits or {},
-                "can_autostart": sys.platform == "win32", "local": self._local()}
+                "can_autostart": sys.platform == "win32", "local": self._local(), "lang": current(), "langs": languages()}
 
     def _log_download(self):
         """Журнал целиком (с предыдущей частью) — чтобы приложить к сообщению об ошибке."""
@@ -112,7 +114,7 @@ class PanelApi:
 
     def _open_logdir(self):
         if not self._local() or sys.platform != "win32":
-            self._json(403, {"error": "только с этого компьютера"})
+            self._json(403, {"error": tr("err.local_only")})
             return
         os.startfile(CFG_DIR)
         self._json(200, {"ok": True})
@@ -148,7 +150,7 @@ class PanelApi:
         q = parse_qs(urlparse(self.path).query)
         d = outline_load(q.get("file", [""])[0])
         if d is None:
-            self._json(404, {"error": "контура нет"})
+            self._json(404, {"error": tr("err.no_outline")})
         elif "layer" in q:
             try:
                 n = int(q["layer"][0])
@@ -167,7 +169,7 @@ class PanelApi:
                 refresh = parse_qs(urlparse(self.path).query).get("refresh", ["0"])[0] == "1"
                 if self.printer.limits is None or refresh:
                     if self.printer.transferring or is_printing(self.printer.status_cached()):
-                        self._json(200, {"limits": self.printer.limits or {}, "note": "печать идёт, настройки платы не запрашивались"})
+                        self._json(200, {"limits": self.printer.limits or {}, "note": tr("limits.printing")})
                         return
                 self._json(200, {"limits": self.printer.get_limits(refresh)})
             except Exception as e:
@@ -201,8 +203,8 @@ class PanelApi:
             return
         names = self._jbody().get("names") or []
         try:
-            if is_printing(self.printer.status()):
-                self._json(409, {"error": "Принтер печатает, удалять файлы нельзя."})
+            if self.printer.printing_now():
+                self._json(409, {"error": tr("err.delete_printing")})
                 return
             lst = self.printer.files()
         except Exception as e:
@@ -222,11 +224,11 @@ class PanelApi:
             return
         name = self._jbody().get("name") or ""
         try:
-            if is_printing(self.printer.status()):
-                self._json(409, {"error": "Принтер уже печатает."})
+            if self.printer.printing_now():
+                self._json(409, {"error": tr("err.already_printing")})
                 return
             if name.lower() not in [n.lower() for n in self.printer.files()]:
-                self._json(404, {"error": "Файла нет на принтере."})
+                self._json(404, {"error": tr("err.no_file")})
                 return
             self.printer.start_print(name)
             remember_started(name)
@@ -239,14 +241,14 @@ class PanelApi:
         b = self._jbody()
         cmd = (b.get("cmd") or "").strip()
         if not cmd or "\n" in cmd or "\r" in cmd or len(cmd) > 100:
-            self._json(400, {"error": "Одна команда в одну строку."})
+            self._json(400, {"error": tr("err.one_line")})
             return
         token = cmd.split()[0].upper()
         if token == "M112" and self.printer.homing:
             try:
                 self.printer.emergency()
                 log("консоль: M112 во время парковки")
-                self._json(200, {"reply": "M112 отправлена"})
+                self._json(200, {"reply": tr("console.m112_sent")})
             except OSError as e:
                 self._json(502, {"error": str(e)})
             return
@@ -254,8 +256,7 @@ class PanelApi:
             return
         try:
             if token not in SAFE_WHILE_PRINTING and not b.get("force") and is_printing(self.printer.status_cached()):
-                self._json(409, {"error": "Идёт печать: %s заблокирована. Отметь «Разрешить опасные команды», "
-                                          "если уверен." % token})
+                self._json(409, {"error": tr("err.blocked", cmd=token)})
                 return
             log("консоль: " + cmd)
             if token == "G28":
@@ -272,12 +273,12 @@ class PanelApi:
         except Exception as e:
             self._json(502, {"error": str(e)})
 
-    def _idle_guard(self, what):
+    def _idle_guard(self, key):
         if not self._guard_printer():
             return False
         try:
             if is_printing(self.printer.status_cached()):
-                self._json(409, {"error": "Во время печати нельзя %s." % what})
+                self._json(409, {"error": tr(key)})
                 return False
         except Exception as e:
             self._json(502, {"error": str(e)})
@@ -285,7 +286,7 @@ class PanelApi:
         return True
 
     def _goto(self):
-        if not self._idle_guard("двигать оси"):
+        if not self._idle_guard("err.printing_move"):
             return
         b = self._jbody()
         lim = {"x": CFG["bed_x"], "y": CFG["bed_y"], "z": CFG["bed_z"]}
@@ -296,13 +297,13 @@ class PanelApi:
             try:
                 vals[k] = float(b[k])
             except (TypeError, ValueError):
-                self._json(400, {"error": "Координата %s должна быть числом." % k.upper()})
+                self._json(400, {"error": tr("err.coord_number", axis=k.upper())})
                 return
             if not 0 <= vals[k] <= lim[k]:   # NaN и inf тоже не проходят
-                self._json(400, {"error": "%s вне допустимого диапазона 0–%g мм." % (k.upper(), lim[k])})
+                self._json(400, {"error": tr("err.coord_range", axis=k.upper(), max="%g" % lim[k])})
                 return
         if not vals:
-            self._json(400, {"error": "Нужна хотя бы одна координата: x, y или z."})
+            self._json(400, {"error": tr("err.coord_none")})
             return
         try:
             cmds = ["G90"]
@@ -316,28 +317,26 @@ class PanelApi:
             reply = self.printer.cmd(cmds, wait=1.5)
             if re.search(r"home\s+[xyz/ ]+first", reply, re.I):
                 log("принтер отказался ехать: %s" % reply.strip().replace("\n", " | "))
-                self._json(409, {"error": "Принтер отказался ехать: сначала нужно сделать Home (G28) по этим осям.", "reply": reply.strip()})
+                self._json(409, {"error": tr("err.home_first"), "reply": reply.strip()})
                 return
             self._json(200, {"reply": reply.strip()})
         except Exception as e:
             self._json(502, {"error": str(e)})
 
     def _extrude(self):
-        if not self._idle_guard("подавать пруток"):
+        if not self._idle_guard("err.printing_extrude"):
             return
         try:
             dist = float(self._jbody().get("dist"))
         except (TypeError, ValueError):
             dist = 0.0
-        if dist == 0 or abs(dist) > 200:
-            self._json(400, {"error": "Подача от 0 до 200 мм."})
+        if not 0 < abs(dist) <= 200:   # так не проходят и NaN с бесконечностью
+            self._json(400, {"error": tr("err.extrude_range")})
             return
         try:
             noz = self.printer.status_cached().get("nozzle")
             if not noz or noz[0] < 170:
-                self._json(409, {"error": "Сопло холодное (%s): прошивка не даст двигать пруток. "
-                                          "Нагрей сопло до 170°+ (например, M104 S200)."
-                                          % ("%.0f°" % noz[0] if noz else "нет данных")})
+                self._json(409, {"error": tr("err.cold", temp="%.0f°" % noz[0] if noz else tr("common.no_data"))})
                 return
             log("подача E%+g" % dist)
             # M83/M82: относительная подача на время команды; слайсер выставит свой режим в начале печати
@@ -351,7 +350,7 @@ class PanelApi:
         try:
             pct = max(0, min(100, int(float(self._jbody().get("percent")))))
         except (TypeError, ValueError):
-            self._json(400, {"error": "Нужен процент 0–100."})
+            self._json(400, {"error": tr("err.percent")})
             return
         try:
             reply = self.printer.cmd(["M107" if pct == 0 else "M106 S%d" % ((pct * 255 + 50) // 100)], wait=1.0).strip()
@@ -369,19 +368,19 @@ class PanelApi:
             dist = float(b.get("dist"))
         except (TypeError, ValueError):
             dist = 0.0
-        if axis not in ("X", "Y", "Z") or dist == 0 or abs(dist) > 100:
-            self._json(400, {"error": "Ось X/Y/Z и шаг до 100 мм."})
+        if axis not in ("X", "Y", "Z") or not 0 < abs(dist) <= 100:   # так не проходят и NaN с бесконечностью
+            self._json(400, {"error": tr("err.move_range")})
             return
         try:
             if is_printing(self.printer.status_cached()):
-                self._json(409, {"error": "Во время печати двигать оси нельзя."})
+                self._json(409, {"error": tr("err.printing_move")})
                 return
             feed = 600 if axis == "Z" else 3000
             log("движение %s%+g" % (axis, dist))
             reply = self.printer.cmd(["G91", "G1 %s%g F%d" % (axis, dist, feed), "G90", "M114"], wait=1.5)
             if re.search(r"home\s+[xyz/ ]+first", reply, re.I):
                 log("принтер отказался ехать: %s" % reply.strip().replace("\n", " | "))
-                self._json(409, {"error": "Принтер отказался ехать: сначала нужно сделать Home (G28) по этим осям.", "reply": reply.strip()})
+                self._json(409, {"error": tr("err.home_first"), "reply": reply.strip()})
                 return
             self._json(200, {"reply": reply.strip()})
         except Exception as e:
@@ -395,14 +394,18 @@ class PanelApi:
         if "printer_ip" in b:
             ip = str(b["printer_ip"]).strip()
             if ip and not re.fullmatch(r"[\w.\-]+", ip):
-                self._json(400, {"error": "Некорректный адрес принтера."})
+                self._json(400, {"error": tr("err.bad_ip")})
                 return
         if "max_name" in b:
             try:
                 max_name = max(12, min(60, int(float(b["max_name"]))))
             except (TypeError, ValueError, OverflowError):
-                self._json(400, {"error": "Длина имени — число от 12 до 60."})
+                self._json(400, {"error": tr("err.max_name")})
                 return
+        lang = b.get("lang")
+        if lang is not None and lang not in languages():
+            self._json(400, {"error": tr("err.lang")})
+            return
         bed = {}
         for k in ("bed_x", "bed_y", "bed_z"):
             if k in b:
@@ -411,7 +414,7 @@ class PanelApi:
                 except (TypeError, ValueError):
                     v = 0.0
                 if not 50 <= v <= 1000:
-                    self._json(400, {"error": "Размер стола 50–1000 мм."})
+                    self._json(400, {"error": tr("err.bed_size")})
                     return
                 bed[k] = v
         if ip is not None:
@@ -425,6 +428,8 @@ class PanelApi:
         if b.get("preview") in PRESETS or b.get("preview") == "off":
             CFG["preview"] = b["preview"]
         CFG.update(bed)
+        if lang:
+            CFG["lang"] = lang
         if "z_bed" in b:
             CFG["z_bed"] = bool(b["z_bed"])
         if self._local():  # доступ с телефона меняем только с самого компьютера
@@ -434,14 +439,17 @@ class PanelApi:
                     CFG["pin"] = "%06d" % secrets.randbelow(10 ** 6)
             if b.get("new_pin"):
                 CFG["pin"] = "%06d" % secrets.randbelow(10 ** 6)
+                CFG["token"] = ""   # телефоны, которые уже входили, спросят новый PIN
             if "autostart" in b:
                 try:
                     autostart_set(bool(b["autostart"]))
                 except OSError as e:
-                    self._json(500, {"error": "автозапуск: %s" % e})
+                    self._json(500, {"error": tr("err.autostart", e=e)})
                     return
         cfg_save()
         self._json(200, self._settings())
+        if "remote" in b:
+            APP["rebind"]()   # доступ с телефона включили или выключили: порт открывается на другом адресе
 
     def _reconnect(self):
         self.printer.reset_link()
@@ -453,7 +461,7 @@ class PanelApi:
             try:
                 st = self.printer.status_cached(max_age=0)
             except Exception as e:
-                self._json(502, {"error": "Принтер не отвечает: %s. Если так и остаётся — выключи и включи принтер (питание), модуль Wi-Fi мог зависнуть." % e})
+                self._json(502, {"error": tr("err.no_reply", e=e)})
                 return
         self._json(200, {"ok": True, "ip": self.printer.ip, "state": st.get("state")})
 
@@ -468,4 +476,4 @@ class PanelApi:
             self._json(200, {"ok": True})
             threading.Thread(target=lambda: (time.sleep(0.3), APP["stop"]()), daemon=True).start()
         else:
-            self._json(403, {"error": "только с этого компьютера"})
+            self._json(403, {"error": tr("err.local_only")})

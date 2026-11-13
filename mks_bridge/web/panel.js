@@ -1,3 +1,7 @@
+// Тексты панели лежат в языковых файлах mks_bridge/lang/*.json; сервер отдаёт выбранный язык как LANG (/static/lang.js).
+// tr('ключ',{имя:значение}) — текст по ключу; {имя} в тексте заменяется значением.
+function tr(k,p){const s=LANG[k];if(s==null)return k;return p?s.replace(/\{(\w+)\}/g,(m,n)=>p[n]!=null?p[n]:m):s}
+const LOC=tr('lang.locale');
 const $=s=>document.querySelector(s);
 const HDR={'X-Requested-With':'mks','Content-Type':'application/json'};
 const P={check:'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z',
@@ -26,44 +30,44 @@ function ask(title,text,ok,danger,choices){return new Promise(res=>{
   else{y.style.display='';y.textContent=ok||'OK';y.className=danger?'dz':'p';y.onclick=()=>done(true)}
   n.onclick=()=>done(no);o.onclick=e=>{if(e.target===o)done(no)};
   document.addEventListener('keydown',key,true);o.classList.add('on');(choices?ch.firstChild:danger?n:y).focus()})}
-async function quitApp(){if(await ask('Выключить мост?','Orca перестанет отправлять файлы на принтер, панель перестанет обновляться.','Выключить',1))api('/api/quit',{})}
+async function quitApp(){if(await ask(tr('quit.title'),tr('quit.text'),tr('quit.ok'),1))api('/api/quit',{})}
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',5500);
   try{navigator.vibrate&&navigator.vibrate(150)}catch(_){}}
 // ---- тема
-const TN={auto:'как в системе',dark:'тёмная',light:'светлая'};
+const TN={auto:tr('theme.auto'),dark:tr('theme.dark'),light:tr('theme.light')};
 function applyTheme(){const t=lsGet('mks_theme')||'auto';t==='auto'?document.documentElement.removeAttribute('data-theme'):document.documentElement.dataset.theme=t;
-  $('#thm').title='Тема: '+TN[t]+' (нажми, чтобы сменить)';drawChart()}
-function cycleTheme(){const n={auto:'dark',dark:'light',light:'auto'}[lsGet('mks_theme')||'auto'];lsSet('mks_theme',n);applyTheme();toast('Тема: '+TN[n])}
+  $('#thm').title=tr('theme.title',{name:TN[t]});drawChart()}
+function cycleTheme(){const n={auto:'dark',dark:'light',light:'auto'}[lsGet('mks_theme')||'auto'];lsSet('mks_theme',n);applyTheme();toast(tr('theme.toast',{name:TN[n]}))}
 // ---- статус
 // время окончания по часам компьютера: «21:40», «завтра 03:15»
 function finAt(eta){const d=new Date(Date.now()+eta*1000),n=new Date(),dd=Math.round((new Date(d).setHours(0,0,0,0)-new Date(n).setHours(0,0,0,0))/864e5);
-  return(dd===1?'завтра ':dd>1?d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'})+' ':'')+d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}
-function fmt(s){if(s==null)return'—';s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+' ч ':'')+m+' мин'}
+  return(dd===1?tr('time.tomorrow'):dd>1?d.toLocaleDateString(LOC,{day:'numeric',month:'short'})+' ':'')+d.toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'})}
+function fmt(s){if(s==null)return'—';s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+tr('unit.h_mid'):'')+m+tr('unit.min')}
 function ttH(a){return a?'<span>'+a[0].toFixed(0)+'</span><i> / '+a[1].toFixed(0)+'°</i>':'—'}
 function tt(a){return a?a[0].toFixed(0)+' / '+a[1].toFixed(0)+'°':'—'}
 const seen={};let HIST=[],NOW=0,RANGE=+(lsGet('mks_range')||900);
 async function tick(){
   if(document.hidden)return;
   const s=await api('/api/status?win='+RANGE);
-  if(s.bridge!==false)$('#ip').textContent=s.ip||'не задан';
-  const b=$('#state');b.textContent=s.online?(s.homing?'ПАРКОВКА':s.heating?'НАГРЕВ':(s.state||'—')+(s.stale?' …':'')):s.bridge===false?'мост выключен':'нет связи';b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':'Нажми, чтобы переподключиться';b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
+  if(s.bridge!==false)$('#ip').textContent=s.ip||tr('status.ip_unset');
+  const b=$('#state');b.textContent=s.online?(s.homing?tr('status.homing'):s.heating?tr('status.heating'):(s.state||'—')+(s.stale?' …':'')):s.bridge===false?tr('status.bridge_off'):tr('status.offline');b.style.cursor=s.online?'':'pointer';b.onclick=s.online?null:reconnect;b.title=s.online?'':tr('status.reconnect_hint');b.className='badge '+(s.online?(/PRINT/.test(s.state||'')?'on':''):'off');
   $('#nozzle').innerHTML=ttH(s.nozzle);$('#bed').innerHTML=ttH(s.bed);
   // в пустом поле серым — текущая цель, как в Mainsail/OctoPrint: вписал поверх, Enter
   $('#tn').placeholder=s.nozzle?s.nozzle[1].toFixed(0):'';$('#tb').placeholder=s.bed?s.bed[1].toFixed(0):'';
   $('#prog').style.width=(s.progress||0)+'%';$('#progtxt').textContent=s.progress!=null?s.progress+'%':'—';
   $('#layer').textContent=s.layers?(s.layer_exact?'':'≈ ')+s.layer+' / '+s.layers:'—';
-  $('#zv').textContent=s.pos&&s.pos.z!=null?s.pos.z.toFixed(2)+' мм':'—';
-  $('#elapsed').textContent=fmt(s.elapsed);$('#eta').textContent=s.eta!=null?'≈ '+fmt(s.eta):'—';$('#fin').textContent=s.eta!=null?'· до '+finAt(s.eta):'';
+  $('#zv').textContent=s.pos&&s.pos.z!=null?s.pos.z.toFixed(2)+tr('unit.mm'):'—';
+  $('#elapsed').textContent=fmt(s.elapsed);$('#eta').textContent=s.eta!=null?'≈ '+fmt(s.eta):'—';$('#fin').textContent=s.eta!=null?tr('status.until')+finAt(s.eta):'';
   // начало печати: прошивка ждёт нагрева (M190/M109) и на координаты не отвечает — пишем, что происходит
-  const warm=(k,n)=>{const t=s[k];return t&&t[1]>0&&t[0]<t[1]-2?'Нагрев '+n+': '+t[0].toFixed(0)+' → '+t[1].toFixed(0)+'°':''};
-  const heat=/PRINT/.test(s.state||'')&&(s.progress||0)<1?warm('bed','стола')||warm('nozzle','сопла'):'';
+  const warm=k=>{const t=s[k];return t&&t[1]>0&&t[0]<t[1]-2?tr('heat.'+k,{a:t[0].toFixed(0),b:t[1].toFixed(0)}):''};
+  const heat=/PRINT/.test(s.state||'')&&(s.progress||0)<1?warm('bed')||warm('nozzle'):'';
   $('#file').textContent=heat||s.file||'';$('#err').textContent=s.error||'';
   HIST=s.history||[];NOW=s.now||Math.floor(Date.now()/1000);drawChart();jobs(s.jobs||[]);updateTwin(s);
   
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});
 // ---- график: окно времени фиксировано, пропуски данных — разрыв линии
-const GAP=40,RANGES=[[300,'5 мин'],[900,'15 мин'],[3600,'1 час']];
+const GAP=40,RANGES=[[300,tr('range.5m')],[900,tr('range.15m')],[3600,tr('range.1h')]];
 $('#ranges').innerHTML=RANGES.map(r=>'<button class="s" data-r="'+r[0]+'" onclick="setRange('+r[0]+')">'+r[1]+'</button>').join(' ');
 function setRange(r){RANGE=r;lsSet('mks_range',r);document.querySelectorAll('#ranges button').forEach(b=>b.classList.toggle('on',+b.dataset.r===r));tick()}
 document.querySelectorAll('#ranges button').forEach(b=>b.classList.toggle('on',+b.dataset.r===RANGE));
@@ -82,7 +86,7 @@ function drawChart(){
   for(let v=0;v<=ymax;v+=step){const y=px1(Y(v));x.strokeStyle=bd;x.beginPath();x.moveTo(L,y);x.lineTo(L+pw,y);x.stroke();x.fillStyle=mu;x.fillText(v,L-5,y+4)}
   const ti=[10,30,60,120,300,600,900,1800].find(s=>span/s<=6)||1800;x.textAlign='center';
   for(let a=0;a<=span;a+=ti){const px=px1(L+pw-a/span*pw);x.strokeStyle=bd;x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ph);x.stroke();
-    x.fillStyle=mu;x.fillText(a===0?'сейчас':'−'+(a>=3600?a/3600+' ч':a>=60?a/60+' мин':a+' с'),Math.min(px,W-R+10),H-5)}
+    x.fillStyle=mu;x.fillText(a===0?tr('chart.now'):'−'+(a>=3600?a/3600+tr('unit.h'):a>=60?a/60+tr('unit.min'):a+tr('unit.s')),Math.min(px,W-R+10),H-5)}
   function line(k,col,tg){let prev=null;
     h.forEach(p=>{const v=p[k];if(v==null||(tg&&!v)){prev=null;return}
       if(prev&&p[0]-prev[0]>GAP)prev=null;
@@ -112,8 +116,8 @@ function drawChart(){
   if(hoverX!=null&&h.length>1&&hoverX>=L&&hoverX<=L+pw){
     const t=now-(L+pw-hoverX)/pw*span;let p=h[0];h.forEach(q=>{if(Math.abs(q[0]-t)<Math.abs(p[0]-t))p=q});const px=X(p[0]);
     x.strokeStyle=fg;x.globalAlpha=.4;x.lineWidth=1;x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ph);x.stroke();x.globalAlpha=1;
-    const f=(a,b)=>a==null?'нет данных':a.toFixed(0)+'°'+(b?' → '+b.toFixed(0)+'°':'');
-    const txt='−'+Math.round(now-p[0])+' с   сопло '+f(p[1],p[3])+'   стол '+f(p[2],p[4]),w=x.measureText(txt).width+14,bx=Math.min(Math.max(px-w/2,L),L+pw-w);
+    const f=(a,b)=>a==null?tr('common.no_data'):a.toFixed(0)+'°'+(b?' → '+b.toFixed(0)+'°':'');
+    const txt='−'+Math.round(now-p[0])+tr('chart.tip_nozzle')+f(p[1],p[3])+tr('chart.tip_bed')+f(p[2],p[4]),w=x.measureText(txt).width+14,bx=Math.min(Math.max(px-w/2,L),L+pw-w);
     x.fillStyle=cd;x.strokeStyle=bd;x.fillRect(bx,T+2,w,20);x.strokeRect(bx,T+2,w,20);x.fillStyle=fg;x.textAlign='left';x.fillText(txt,bx+7,T+16);
     SER.forEach(([k,kt,col])=>{if(p[k]!=null){x.fillStyle=col;x.beginPath();x.arc(px,Y(p[k]),4,0,7);x.fill()}});
   }
@@ -138,30 +142,30 @@ drop.ondragover=e=>{e.preventDefault();drop.classList.add('h')};drop.ondragleave
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('h');sendFiles(e.dataTransfer.files)};pick.onchange=()=>{sendFiles(pick.files);pick.value=''};
 function sendFiles(fl){[...fl].forEach(f=>{
   const x=new XMLHttpRequest();x.open('POST','/api/upload?name='+encodeURIComponent(f.name)+'&print='+($('#startAfter').checked?1:0));
-  x.setRequestHeader('X-Requested-With','mks');x.upload.onprogress=e=>{drop.firstChild.textContent='Передача на мост: '+f.name+' '+Math.round(e.loaded*100/e.total)+'%'};
-  const done=err=>{drop.firstChild.textContent='Перетащи .gcode сюда или нажми, чтобы выбрать';if(err)toast('✖ '+f.name+': '+err);tick()};
-  x.onload=()=>{let e=null;if(x.status!==200){try{e=JSON.parse(x.responseText).error}catch(_){}e=e||('мост ответил HTTP '+x.status)}done(e)};
-  x.onerror=()=>done('связь с мостом оборвалась');x.send(f)})}
+  x.setRequestHeader('X-Requested-With','mks');x.upload.onprogress=e=>{drop.firstChild.textContent=tr('upload.to_bridge')+f.name+' '+Math.round(e.loaded*100/e.total)+'%'};
+  const done=err=>{drop.firstChild.textContent=tr('upload.drop');if(err)toast('✖ '+f.name+': '+err);tick()};
+  x.onload=()=>{let e=null;if(x.status!==200){try{e=JSON.parse(x.responseText).error}catch(_){}e=e||(tr('upload.http')+x.status)}done(e)};
+  x.onerror=()=>done(tr('upload.lost'));x.send(f)})}
 // ---- файлы
 async function loadFiles(){
-  const box=$('#files');box.textContent='Загрузка…';const r=await api('/api/list');if(r.error){box.textContent=r.error;return}
-  box.textContent='';if(!r.files.length){box.textContent=r.cached?'Во время печати принтер не отдаёт список файлов. Он появится после печати.':'Файлов нет';return}
-  if(r.cached||r.partial){const n=document.createElement('div');n.className='mut sm';n.textContent=r.partial?'Принтер прислал список не целиком — нажми «Обновить».':'Во время печати принтер не отдаёт список: показан последний известный.';box.appendChild(n)}
+  const box=$('#files');box.textContent=tr('common.loading');const r=await api('/api/list');if(r.error){box.textContent=r.error;return}
+  box.textContent='';if(!r.files.length){box.textContent=r.cached?tr('files.printing_none'):tr('files.none');return}
+  if(r.cached||r.partial){const n=document.createElement('div');n.className='mut sm';n.textContent=r.partial?tr('files.partial'):tr('files.cached');box.appendChild(n)}
   r.files.forEach(n=>{const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.value=n;l.appendChild(c);l.appendChild(document.createTextNode(n));box.appendChild(l)})}
 const sel=()=>[...document.querySelectorAll('#files input:checked')].map(c=>c.value);
-async function delSel(){const n=sel();if(!n.length){toast('Отметь файлы для удаления');return}
-  if(!await ask(n.length===1?'Удалить файл с принтера?':'Удалить '+n.length+' файл(ов) с принтера?',n.join(', '),'Удалить',1))return;
-  toast('Удаляю…');const r=await api('/api/delete',{names:n});toast(r.error||('Удалено: '+r.results.filter(x=>x.ok).length+' из '+n.length));loadFiles()}
-async function printSel(){const n=sel();if(n.length!==1){toast('Выбери один файл');return}
-  if(!await ask('Запустить печать?',n[0],'Печатать'))return;const r=await api('/api/print',{name:n[0]});toast(r.error||'Печать запущена')}
+async function delSel(){const n=sel();if(!n.length){toast(tr('files.select_del'));return}
+  if(!await ask(n.length===1?tr('files.del.one'):tr('files.del.many',{n:n.length}),n.join(', '),tr('files.delete'),1))return;
+  toast(tr('files.deleting'));const r=await api('/api/delete',{names:n});toast(r.error||tr('files.deleted',{ok:r.results.filter(x=>x.ok).length,n:n.length}));loadFiles()}
+async function printSel(){const n=sel();if(n.length!==1){toast(tr('files.select_one'));return}
+  if(!await ask(tr('files.print.title'),n[0],tr('files.print')))return;const r=await api('/api/print',{name:n[0]});toast(r.error||tr('files.print.started'))}
 // ---- консоль
 // [заголовок, пояснение, кнопка, красная]
-const DANGER={G28:['Парковка','Головка и стол поедут к концевикам. Проверь, что на столе и под соплом ничего нет.','Парковать'],
- M26:['Остановить печать?','Печать прервётся, продолжить её с этого места будет нельзя.','Остановить',1],
- M112:['Аварийный стоп','Принтер немедленно остановится и потребует перезагрузки по питанию.','Аварийный стоп',1],
- M500:['Записать в EEPROM?','Текущие настройки платы сохранятся в её память и переживут перезагрузку.','Записать'],
- M502:['Сброс к заводским','Шаги, ускорения и PID вернутся к значениям прошивки. В память не запишется, пока не выполнишь M500.','Сбросить',1],
- M303:['Калибровка PID','Сопло будет греться и остывать несколько минут. Не оставляй принтер без присмотра.','Запустить']};
+const DANGER={G28:[tr('danger.g28.title'),tr('danger.g28.text'),tr('danger.g28.ok')],
+ M26:[tr('danger.m26.title'),tr('danger.m26.text'),tr('danger.m26.ok'),1],
+ M112:[tr('danger.m112.title'),tr('danger.m112.text'),tr('danger.m112.title'),1],
+ M500:[tr('danger.m500.title'),tr('danger.m500.text'),tr('danger.m500.ok')],
+ M502:[tr('danger.m502.title'),tr('danger.m502.text'),tr('danger.m502.ok'),1],
+ M303:[tr('danger.m303.title'),tr('danger.m303.text'),tr('danger.m303.ok')]};
 const CMDH=[];let hi=0;
 function log(t,c){const l=$('#log'),d=document.createElement('div');d.textContent=t;if(c)d.style.color=c;l.appendChild(d);l.scrollTop=l.scrollHeight}
 function homeAnim(c){const ax=c.trim().toUpperCase().split(/\s+/).slice(1).filter(a=>/^[XYZ]$/.test(a)),all=!ax.length,h=a=>all||ax.includes(a);
@@ -170,51 +174,51 @@ async function cmd(c){const tok=c.trim().split(/\s+/)[0].toUpperCase(),dg=DANGER
   if(tok==='G28'&&!/PRINT|PAUSE/.test(LASTS.state||'')){homeAnim(c);HOMING=Date.now()}
   tab('log');log('> '+c);const r=await api('/api/console',{cmd:c,force:$('#force').checked});
   if(r.error){if(tok==='G28')HOMING=0;log(r.error,'#ef5350');return false}
-  else{log(r.reply||(r.homing?'(принтер паркуется: пока не закончит, остальные команды недоступны)':'(команда отправлена, ответа нет)'));if(r.homing)tick();return true}}
+  else{log(r.reply||(r.homing?tr('console.homing'):tr('console.no_reply')));if(r.homing)tick();return true}}
 function sendCon(){const v=$('#cin').value.trim();if(!v)return;CMDH.push(v);hi=CMDH.length;cmd(v);$('#cin').value=''}
 function conKey(e){if(e.key==='Enter')sendCon();else if(e.key==='ArrowUp'&&CMDH.length){hi=Math.max(0,hi-1);$('#cin').value=CMDH[hi];e.preventDefault()}
   else if(e.key==='ArrowDown'&&CMDH.length){hi=Math.min(CMDH.length,hi+1);$('#cin').value=CMDH[hi]||'';e.preventDefault()}}
 // ---- справочник команд: [код, описание, режим s=отправить сразу / t=подставить в поле]
 const REF=[
-['Информация',[['M105','Температуры сопла и стола: текущая / заданная','s'],['M114','Текущие координаты X Y Z E','s'],['M115','Версия прошивки и список возможностей','s'],
- ['M503','Все настройки платы: шаги, ускорения, PID, шейпер, смещения','s'],['M119','Состояние концевиков (сработал или нет)','s'],['M20','Список файлов на карте памяти','s'],
- ['M27','Прогресс печати с карты, в процентах (у MKS)','s'],['M992','MKS: сколько времени идёт печать (чч:мм:сс)','s'],['M994','MKS: имя печатаемого файла','s'],['M997','MKS: состояние (IDLE, PRINTING, PAUSE)','s']]],
-['Движение',[['G28','Домой по всем осям (с подтверждением)','s'],['G28 X Y','Домой только по X и Y (не трогая Z)','s'],['G90','Абсолютные координаты: G1 X50 — «в точку X = 50» (обычный режим)','s'],
- ['G91','Относительные координаты: G1 X10 — «на 10 мм правее». После перемещений верни G90!','s'],
- ['G1 X','Переместиться: G1 X50 Y50 F3000. X, Y, Z — куда, мм; F — скорость в мм/мин (3000 = 50 мм/с)','t'],
- ['G92','Сказать принтеру «я сейчас здесь», без движения: G92 E0 — обнулить счётчик прутка. X, Y, Z, E — новые значения','t'],
- ['M84','Выключить моторы: оси можно двигать руками','s'],['M400','Дождаться завершения всех движений','s'],
- ['M410','Быстро остановить движение: очередь перемещений сбрасывается. Нагрев не выключает','s']]],
-['Температура и обдув',[['M104 S','Сопло: задать температуру и не ждать. M104 S200; S — градусы, S0 — выключить','t'],['M109 S','Сопло: задать температуру и дождаться нагрева. M109 S235','t'],
- ['M140 S','Стол: задать температуру и не ждать. M140 S60; S — градусы, S0 — выключить','t'],['M190 S','Стол: задать температуру и дождаться нагрева. M190 S80','t'],
- ['M106 S','Обдув модели: M106 S128. S — мощность от 0 до 255: S128 ≈ 50 %, S255 — на полную','t'],['M107','Выключить вентилятор обдува','s']]],
-['Печать',[['M23','Выбрать файл на карте: M23 имя.gcode','t'],['M24','Начать выбранный файл / продолжить после паузы','s'],['M25','Пауза печати','s'],
- ['M26','Остановка печати (у MKS так, по Cura-плагину; в чистом Marlin M26 задаёт позицию в файле)','s'],
- ['M220 S','Скорость печати: M220 S120 — на 20 % быстрее. S — проценты, 100 — как в G-code','t'],
- ['M221 S','Поток пластика: M221 S95 — подавать на 5 % меньше. S — проценты, 100 — как в G-code','t'],
- ['M290 Z','Подстройка высоты Z «на лету»: M290 Z-0.05. Z — на сколько мм, минус — ближе к столу. Не сохраняется','t'],
- ['M117','Показать текст на экране принтера: M117 Привет','t'],['M300 S','Звуковой сигнал: M300 S440 P200. S — высота звука, Гц; P — длительность, мс','t'],
- ['M413 S','Продолжение печати после пропадания питания: M413 S1 — включить, S0 — выключить','t']]],
-['Скорости и ускорения',[['M201 X','Предел ускорения: M201 X3000 Y3000, мм/с². Быстрее принтер не разгонится, даже если просит слайсер','t'],
- ['M203 X','Предел скорости: M203 X200 Y200. Внимание: тут мм/с, а не мм/мин, как в G1','t'],
- ['M204 P','Рабочие ускорения: M204 P1500 T3000. P — при печати, T — на перемещениях без печати, мм/с²; не выше M201','t'],
- ['M205 X','Рывок (jerk): M205 X10 Y10 — с какой скоростью, мм/с, голова проходит угол без полной остановки','t'],
- ['M593','Input Shaping (гашение эха после углов): M593 X F75 D0.15. X или Y — ось (без оси — обе); F — частота, Гц (F0 — выключить); D — демпфирование','t']]],
-['Калибровка и сервис',[['M900 K','Linear Advance: M900 K0.04. K — сила компенсации давления в сопле; K0 — выключить','t'],
- ['M303','Автокалибровка PID: M303 E0 S235 C8 U1. E0 — сопло (E-1 — стол); S — температура; C — сколько циклов; U1 — сразу применить. Греет, нужен присмотр','t'],
- ['M301 P','PID сопла вручную: M301 P9.66 I0.88 D26.67 — три числа из M303 или M503','t'],['M304 P','PID стола вручную: M304 P54.5 I10.6 D186','t'],
- ['M92 E','Шагов на миллиметр: M92 E720. Так калибруют подачу экструдера (e-steps); X, Y, Z обычно не трогают','t'],
- ['M82','Абсолютная подача прутка: в G1 E — позиция прутка, а не «сколько выдавить»','s'],
- ['M83','Относительная подача: G1 E5 F100 — выдавить 5 мм. Удобно для ручной подачи','s'],
- ['M302 P','Разрешить подачу холодного прутка: M302 P1 (P0 — снова запретить). Только для проверки механики','t'],
- ['M500','Сохранить текущие настройки в память платы (EEPROM)','s'],['M501','Загрузить настройки из памяти платы','s'],['M502','Сбросить настройки к заводским значениям (не сохраняя)','s'],
- ['M112','АВАРИЙНЫЙ стоп. Нужна перезагрузка принтера','s']]]];
+[tr('ref.g.info'),[['M105',tr('ref.m105'),'s'],['M114',tr('ref.m114'),'s'],['M115',tr('ref.m115'),'s'],
+ ['M503',tr('ref.m503'),'s'],['M119',tr('ref.m119'),'s'],['M20',tr('ref.m20'),'s'],
+ ['M27',tr('ref.m27'),'s'],['M992',tr('ref.m992'),'s'],['M994',tr('ref.m994'),'s'],['M997',tr('ref.m997'),'s']]],
+[tr('ref.g.motion'),[['G28',tr('ref.g28'),'s'],['G28 X Y',tr('ref.g28xy'),'s'],['G90',tr('ref.g90'),'s'],
+ ['G91',tr('ref.g91'),'s'],
+ ['G1 X',tr('ref.g1'),'t'],
+ ['G92',tr('ref.g92'),'t'],
+ ['M84',tr('ref.m84'),'s'],['M400',tr('ref.m400'),'s'],
+ ['M410',tr('ref.m410'),'s']]],
+[tr('ref.g.temp'),[['M104 S',tr('ref.m104'),'t'],['M109 S',tr('ref.m109'),'t'],
+ ['M140 S',tr('ref.m140'),'t'],['M190 S',tr('ref.m190'),'t'],
+ ['M106 S',tr('ref.m106'),'t'],['M107',tr('ref.m107'),'s']]],
+[tr('print.title'),[['M23',tr('ref.m23'),'t'],['M24',tr('ref.m24'),'s'],['M25',tr('ref.m25'),'s'],
+ ['M26',tr('ref.m26'),'s'],
+ ['M220 S',tr('ref.m220'),'t'],
+ ['M221 S',tr('ref.m221'),'t'],
+ ['M290 Z',tr('ref.m290'),'t'],
+ ['M117',tr('ref.m117'),'t'],['M300 S',tr('ref.m300'),'t'],
+ ['M413 S',tr('ref.m413'),'t']]],
+[tr('ref.g.speed'),[['M201 X',tr('ref.m201'),'t'],
+ ['M203 X',tr('ref.m203'),'t'],
+ ['M204 P',tr('ref.m204'),'t'],
+ ['M205 X',tr('ref.m205'),'t'],
+ ['M593',tr('ref.m593'),'t']]],
+[tr('ref.g.cal'),[['M900 K',tr('ref.m900'),'t'],
+ ['M303',tr('ref.m303'),'t'],
+ ['M301 P',tr('ref.m301'),'t'],['M304 P',tr('ref.m304'),'t'],
+ ['M92 E',tr('ref.m92'),'t'],
+ ['M82',tr('ref.m82'),'s'],
+ ['M83',tr('ref.m83'),'s'],
+ ['M302 P',tr('ref.m302'),'t'],
+ ['M500',tr('ref.m500'),'s'],['M501',tr('ref.m501'),'s'],['M502',tr('ref.m502'),'s'],
+ ['M112',tr('ref.m112'),'s']]]];
 function renderRef(){
   const q=($('#refq').value||'').toLowerCase(),box=$('#reflist');box.textContent='';
   REF.forEach(([g,items])=>{const it=items.filter(i=>!q||i[0].toLowerCase().includes(q)||i[1].toLowerCase().includes(q));if(!it.length)return;
     const h=document.createElement('div');h.className='rg';h.textContent=g;box.appendChild(h);
     it.forEach(([c,d,m])=>{const r=document.createElement('div');r.className='rr'+(DANGER[c.split(' ')[0]]?' dg':'');
-      const b=document.createElement('code');b.textContent=c;b.title='Вставить в строку ввода';
+      const b=document.createElement('code');b.textContent=c;b.title=tr('ref.insert');
       b.onclick=()=>{const i=$('#cin');i.value=m==='s'||/[SKZX]$/.test(c)?c:c+' ';i.focus();i.setSelectionRange&&i.setSelectionRange(i.value.length,i.value.length)};
       const s=document.createElement('span');s.textContent=d;r.appendChild(b);r.appendChild(s);box.appendChild(r)})});
 }
@@ -223,21 +227,21 @@ let STEP=10;
 $('#steps').innerHTML=[0.1,1,10,50].map(s=>'<button data-s="'+s+'" onclick="setStep('+s+')">'+s+'</button>').join('');
 function setStep(s){STEP=s;$('#zstep').textContent=s;document.querySelectorAll('#steps button').forEach(b=>b.classList.toggle('on',+b.dataset.s===s))}setStep(10);
 async function mv(a,sign){const d=sign*STEP;
-  if(d<0&&a==='Z'&&STEP>=10&&!await ask('Сблизить сопло и стол на '+STEP+' мм?','Проверь, что под соплом ничего нет.','Сблизить'))return;
-  log('> '+a+(d>0?'+':'')+d+' мм');
+  if(d<0&&a==='Z'&&STEP>=10&&!await ask(tr('move.close.title',{mm:STEP}),tr('move.close.text'),tr('move.close.ok')))return;
+  log('> '+a+(d>0?'+':'')+d+tr('unit.mm'));
   let plan;{const c=TGTP||CUR||{x:0,y:0,z:0},lim={X:GEOM.bx,Y:GEOM.by,Z:GEOM.bz}[a],nv=Math.max(0,Math.min(lim,c[a.toLowerCase()]+d)),t={x:c.x,y:c.y,z:c.z};t[a.toLowerCase()]=nv;
    plan=holdPlan(t.x,t.y,t.z,feedXY(50),Math.min(10,LIM.z||10))}
-  const r=await guardedMove(plan,()=>api('/api/move',{axis:a,dist:d}));if(r.error)log(r.error+(r.reply?' · '+r.reply.split('\n')[0]:''),'#ef5350');else log(r.reply||'(команда отправлена)');tick()}
+  const r=await guardedMove(plan,()=>api('/api/move',{axis:a,dist:d}));if(r.error)log(r.error+(r.reply?' · '+r.reply.split('\n')[0]:''),'#ef5350');else log(r.reply||tr('console.sent_cmd'));tick()}
 function zMove(up){mv('Z',(up?1:-1)*(GEOM.z_bed?-1:1))}
-function zTitles(){const b=GEOM.z_bed;$('#zUp').title=b?'Стол вверх, ближе к соплу (Z−)':'Сопло вверх (Z+)';$('#zDn').title=b?'Стол вниз, дальше от сопла (Z+)':'Сопло вниз (Z−)';$('#zcap').textContent=b?'Стол':'Сопло'}
+function zTitles(){const b=GEOM.z_bed;$('#zUp').title=b?tr('z.up.bed'):tr('z.up.head');$('#zDn').title=b?tr('z.down.bed'):tr('z.down.head');$('#zcap').textContent=b?tr('common.bed'):tr('common.nozzle')}
 let ESTEP=5;
 $('#esteps').innerHTML=[1,5,10,50].map(s=>'<button data-s="'+s+'" onclick="setEStep('+s+')">'+s+'</button>').join('');
 function setEStep(s){ESTEP=s;document.querySelectorAll('#esteps button').forEach(b=>b.classList.toggle('on',+b.dataset.s===s))}setEStep(5);
-async function ex(sign){const d=sign*ESTEP;log('> пруток '+(d>0?'+':'')+d+' мм');const r=await api('/api/extrude',{dist:d});
-  if(r.error){log(r.error,'#ef5350');return}log(r.reply||'(отправлено)');setE((tgtE==null?visE:tgtE)+d);tick()}
+async function ex(sign){const d=sign*ESTEP;log(tr('log.filament')+(d>0?'+':'')+d+tr('unit.mm'));const r=await api('/api/extrude',{dist:d});
+  if(r.error){log(r.error,'#ef5350');return}log(r.reply||tr('console.sent'));setE((tgtE==null?visE:tgtE)+d);tick()}
 function tab(n){$('#pLog').hidden=n!=='log';$('#pRef').hidden=n!=='ref';$('#clr').style.visibility=n==='log'?'visible':'hidden';document.querySelectorAll('.tb').forEach(b=>b.classList.toggle('on',b.dataset.t===n))}
 function fanLabel(){const r=$('#fanr'),v=r.value;$('#fanv').textContent=v+'%';if(r.style&&r.style.setProperty)r.style.setProperty('--v',v+'%')}
-async function setFan(){const v=+$('#fanr').value;log('> обдув '+v+'%');const r=await api('/api/fan',{percent:v});r.error?log(r.error,'#ef5350'):log(r.reply||'(отправлено)');tick()}
+async function setFan(){const v=+$('#fanr').value;log(tr('log.fan')+v+'%');const r=await api('/api/fan',{percent:v});r.error?log(r.error,'#ef5350'):log(r.reply||tr('console.sent'));tick()}
 // ---- цифровая копия принтера
 let GEOM={bx:255,by:210,bz:210,z_bed:true},TW=null,FR=null,visE=0,tgtE=null,eRaf=0,lastT=0,LASTS={},ARM=null,DOWN=null;
 // Каретка X выходит за стол: слева пластина на 28 мм, справа гайка прижима BMG на 33 мм; по Y пластина ±24 мм.
@@ -384,7 +388,7 @@ function buildTwin(){
    '<circle class="hb" r="'+(4.6*sc)+'" style="fill:var(--bd);stroke:var(--mut)" stroke-width=".8"/>'+   // фитинг над осью прутка
    '<circle class="hb" r="'+(11.15*sc)+'" fill="none" style="stroke:var(--mut)" stroke-width="1" stroke-dasharray="2 1.6"/>'+
    '<circle id="tNoz" r="3.5" fill="#64748b" style="stroke:var(--fg)"/><rect x="'+(-28*sc-3)+'" y="'+(-24*sc-3)+'" width="'+(56*sc+6)+'" height="'+(48*sc+6)+'" '+HIT+'/><rect id="tRing" x="'+(-28*sc-5)+'" y="'+(-24*sc-5)+'" width="'+(56*sc+10)+'" height="'+(48*sc+10)+'" rx="7" '+RING+'/></g>'+
-   '<text x="'+(ox+bw/2)+'" y="'+(oy+bh+ty+17)+'" text-anchor="middle" font-size="6.5" letter-spacing=".08em" style="fill:var(--mut)" opacity=".8">перед</text>'+
+   '<text x="'+(ox+bw/2)+'" y="'+(oy+bh+ty+17)+'" text-anchor="middle" font-size="6.5" letter-spacing=".08em" style="fill:var(--mut)" opacity=".8">'+tr('twin.front')+'</text>'+
    pill('tBedT',rr+12*sc,oy+bh+ty+15,8,'end',ox+bw-rr-12*sc,-ty-15)+   // под рамой справа, в строке с «перед»; выноска к углу стола
    '<g id="tHov" style="display:none;pointer-events:none"><line id="tHovH" x1="'+ox+'" x2="'+(ox+bw)+'" style="stroke:var(--acc)" stroke-width="1.3" stroke-dasharray="4 3"/><line id="tHovV" y1="'+oy+'" y2="'+(oy+bh)+'" style="stroke:var(--acc)" stroke-width="1.3" stroke-dasharray="4 3"/><circle id="tHovC" r="3.5" style="fill:var(--acc)"/><rect id="tHovR" rx="3" height="15" style="fill:var(--card);fill-opacity:.94;stroke:var(--acc)" stroke-width="1"/><text id="tHovT" font-size="10" style="fill:var(--fg);font-weight:700"></text></g>';
   const rx1=ox+22,rx2=ox+bw-22,cx=ox+bw/2,B=FR.beam,hs=sc,ht=HEAD.top*hs;
@@ -426,7 +430,7 @@ function buildTwin(){
    '<line id="eFil" x1="'+ex+'" y1="0" x2="'+ex+'" y2="'+(ey+en(-.4))+'" stroke="#22c55e" stroke-width="'+en(1.75)+'" stroke-dasharray="'+en(3)+' '+en(1.2)+'" stroke-dashoffset="0"/>'+
    pill('eNozT',ex+en(6.5),ey+en(1.6),8.5,'start',en(3.5-6.5),en(-3.5-1.6))+
    '<line id="eMelt" x1="'+ex+'" y1="'+(ey+.5)+'" x2="'+ex+'" y2="'+(ey+8)+'" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" style="opacity:0"/>';
-  $('#dimTop').textContent='X '+g.bx+' × Y '+g.by+' мм';$('#dimFront').textContent='X '+g.bx+' × Z '+g.bz+' мм';
+  $('#dimTop').textContent='X '+g.bx+' × Y '+g.by+tr('unit.mm');$('#dimFront').textContent='X '+g.bx+' × Z '+g.bz+tr('unit.mm');
   document.querySelectorAll('.ring').forEach(fixRing);drawModel();
   zTitles();renderE();syncArm();fitViews();renderPos()}
 // ---- плавное движение каретки и стола: на экране едут с реальной скоростью (≈100 мм/с по XY, 25 мм/с по Z), но любой переезд укладывается в ~1.5 с
@@ -448,17 +452,17 @@ function animPos(t){const dt=Math.min(.1,(t-posT)/1000);posT=t;const c=CUR,g=TGT
   posRaf=(c.x!==g.x||c.y!==g.y||c.z!==g.z)?requestAnimationFrame(animPos):0}
 function setVeil(s,fresh){
   let msg=null,sub='';
-  if(!EVER&&Date.now()-T0<5000){msg='Загрузка…'}
-  else if(s.bridge===false){msg='Мост не отвечает';sub='Программа MKS Bridge закрыта или не запущена. Запусти её снова — панель подключится сама.'}
-  else if(s.online===false||(s.error&&!fresh)){msg='Нет связи с принтером';sub=(s.error?String(s.error).replace(/\.?\s*$/,'. '):'')+'Показано последнее известное положение.'}
-  else if(!fresh&&homing()){msg='Принтер едет домой';sub='Во время парковки (G28) прошивка не отвечает на запросы — это нормально. Положение обновится, когда он закончит.'}
-  else if(!fresh&&!CUR&&/PRINT|PAUSE/.test(s.state||'')){msg='Ждём координаты от принтера';sub='Пока принтер греется или паркуется, он не сообщает положение. Модель на столе появится сразу, как только он ответит.'}
-  else if(!fresh&&Date.now()-LASTGOOD>25000&&!/PRINT|PAUSE/.test(s.state||'')){msg='Принтер долго не отвечает';sub='Возможно, он занят движением. Показано последнее известное положение.'}
-  const wait=s.bridge===false||msg==='Загрузка…'||msg==='Принтер едет домой'||msg==='Ждём координаты от принтера';
+  if(!EVER&&Date.now()-T0<5000){msg=tr('common.loading')}
+  else if(s.bridge===false){msg=tr('veil.bridge.title');sub=tr('veil.bridge.text')}
+  else if(s.online===false||(s.error&&!fresh)){msg=tr('veil.offline.title');sub=(s.error?String(s.error).replace(/\.?\s*$/,'. '):'')+tr('veil.last_pos')}
+  else if(!fresh&&homing()){msg=tr('veil.homing.title');sub=tr('veil.homing.text')}
+  else if(!fresh&&!CUR&&/PRINT|PAUSE/.test(s.state||'')){msg=tr('veil.wait.title');sub=tr('veil.wait.text')}
+  else if(!fresh&&Date.now()-LASTGOOD>25000&&!/PRINT|PAUSE/.test(s.state||'')){msg=tr('veil.slow.title');sub=tr('veil.slow.text')}
+  const wait=s.bridge===false||msg===tr('common.loading')||msg===tr('veil.homing.title')||msg===tr('veil.wait.title');
   document.querySelectorAll('.veil').forEach(v=>{v.hidden=!msg;if(msg){v.children[0].textContent=msg;v.children[1].textContent=sub;v.children[2].style.display=wait?'none':''}})}
 // парковку отслеживает мост (s.homing); HOMING закрывает несколько секунд до первого ответа моста после нажатия
 function homing(){return !!LASTS.homing||(HOMING&&Date.now()-HOMING<4000)}
-async function reconnect(){toast('Переподключаюсь…');const r=await api('/api/reconnect',{});toast(r.error||('Связь есть: '+(r.state||'ok')));tick()}
+async function reconnect(){toast(tr('link.reconnecting'));const r=await api('/api/reconnect',{});toast(r.error||(tr('link.ok')+(r.state||'ok')));tick()}
 function feedXY(f){return Math.min(f,LIM.x||f,LIM.y||f)}
 function holdPlan(tx,ty,tz,vxy,vz,extra){const c=TGTP||CUR||{x:0,y:0,z:0};
   tx=tx==null?c.x:tx;ty=ty==null?c.y:ty;tz=tz==null?c.z:tz;
@@ -469,9 +473,9 @@ function holdMove(tx,ty,tz,vxy,vz,extra){holdRun(holdPlan(tx,ty,tz,vxy,vz,extra)
 async function guardedMove(p,call){let started=false;const go=()=>{if(!started){started=true;holdRun(p)}};const tm=setTimeout(go,350);
   const r=await call();clearTimeout(tm);
   if(r.error){HOLD=0;if(started)setPosTarget(p.prev.x,p.prev.y,p.prev.z);toast(r.error)}else go();return r}
-function showLimits(v){if(!v)return;LIM={x:v.x,y:v.y,z:v.z};$('#lims').textContent='Макс. скорости (M203), мм/с: X '+v.x+' · Y '+v.y+' · Z '+v.z+(v.e?' · E '+v.e:'')}
-async function loadLimits(){toast('Читаю настройки платы (M503)…');const r=await api('/api/limits?refresh=1');if(r.error){toast(r.error);return}
-  const v=r.limits&&r.limits.vmax;if(v){showLimits(v);toast('Скорости считаны')}else toast(r.note||'Прошивка не прислала M203')}
+function showLimits(v){if(!v)return;LIM={x:v.x,y:v.y,z:v.z};$('#lims').textContent=tr('limits.line')+v.x+' · Y '+v.y+' · Z '+v.z+(v.e?' · E '+v.e:'')}
+async function loadLimits(){toast(tr('limits.reading'));const r=await api('/api/limits?refresh=1');if(r.error){toast(r.error);return}
+  const v=r.limits&&r.limits.vmax;if(v){showLimits(v);toast(tr('limits.done'))}else toast(r.note||tr('limits.none'))}
 function fitViews(){
   try{const mq=window.matchMedia&&window.matchMedia('(min-width:1450px) and (min-height:640px)'),root=document.documentElement.style,gr=document.querySelector('.grid');
     if(!mq||!mq.matches){root.removeProperty&&root.removeProperty('--vw');if(gr&&gr.style)gr.style.gridTemplateRows='';return}
@@ -489,13 +493,13 @@ function updateTwin(s){
   setVeil(s,fresh);
   const x=TGTP?TGTP.x:0,pp=p||(TGTP?{x:TGTP.x,y:TGTP.y,z:TGTP.z}:null),bc=tcol(bt&&bt[0],110),nc=tcol(nt&&nt[0],260);
   $('#tBed').style.fill=bc;$('#tNoz').style.fill=nc;setPill('#tBedT',bt,bc);
-  $('#tCoord').textContent=pp?'X '+pp.x.toFixed(1)+'  Y '+pp.y.toFixed(1):'нет данных';
+  $('#tCoord').textContent=pp?'X '+pp.x.toFixed(1)+'  Y '+pp.y.toFixed(1):tr('common.no_data');
   const fx=FR.l+(x/g.bx)*FR.bw;
   $('#fBed').style.fill=bc;$('#fBlock').style.fill=nc;$('#fNoz').style.fill=nc;
   // у правого края подпись сопла — слева от блока, чтобы не уйти за раму
   const right=fx>FR.l+FR.bw*.7,ft=$('#fNozT');ft.dataset.a=right?'end':'start';ft.setAttribute('transform','translate('+(right?-(8*FR.s+3):17*FR.s+3)+','+(FR.tip-8*FR.s)+')');
   setPill('#fBedT',bt,bc);setPill('#fNozT',nt,nc);
-  $('#fZ').textContent=pp?'Z '+pp.z.toFixed(2)+' мм':'Z —';
+  $('#fZ').textContent=pp?'Z '+pp.z.toFixed(2)+tr('unit.mm'):'Z —';
   $('#eBlock').style.fill=nc;$('#eNoz').style.fill=nc;setPill('#eNozT',nt,nc);
   $('#eMelt').style.opacity=nt?Math.max(0,Math.min(1,(nt[0]-150)/80)):0;
   const f=s.fan;$('#fanv').textContent=f==null?'—':f+'%';
@@ -531,10 +535,10 @@ function updateModel(s){const pr=/PRINT|PAUSE/.test(s.state||'');$('#svgTop').cl
 function setE(v){tgtE=v;if(!eRaf){lastT=performance.now();eRaf=requestAnimationFrame(animE)}}
 function animE(t){const dt=Math.min(.1,(t-lastT)/1000);lastT=t;const d=tgtE-visE;visE+=Math.sign(d)*Math.min(Math.abs(d),5*dt);renderE();   // 5 мм/с = F300 у /api/extrude
   eRaf=Math.abs(tgtE-visE)>.005?requestAnimationFrame(animE):0}
-function renderE(){if($('#svgExt').classList.contains('printing')){$('#eE').textContent='E по G-code';return}
+function renderE(){if($('#svgExt').classList.contains('printing')){$('#eE').textContent=tr('ext.gcode');return}
   const a=visE*HOB_DEG,rot=(id,d)=>{const e=$(id);if(e)e.setAttribute('transform','rotate('+d.toFixed(2)+')')};
   rot('#eBig',a);rot('#eHob',a);rot('#eIdl',-a);rot('#ePin',-a*GEAR_K);
-  $('#eFil').setAttribute('stroke-dashoffset',(-visE*EK).toFixed(2));$('#eE').textContent='E '+visE.toFixed(1)+' мм'}
+  $('#eFil').setAttribute('stroke-dashoffset',(-visE*EK).toFixed(2));$('#eE').textContent='E '+visE.toFixed(1)+tr('unit.mm')}
 // ---- управление кликом: клик по головке или столу включает режим, следующий клик по месту назначения запускает движение
 function syncArm(){if(!TW)return;$('#tRing').style.display=ARM==='xy'?'':'none';$('#fRingH').style.display=ARM==='x'?'':'none';$('#fRingB').style.display=ARM==='z'?'':'none';
   $('#svgTop').style.cursor=ARM==='xy'?'crosshair':'';$('#svgFront').style.cursor=ARM==='x'||ARM==='z'?'crosshair':'';$('#tHov').style.display='none';$('#fHov').style.display='none';
@@ -547,8 +551,8 @@ function frontZone(){if(ARM==='x'){const h=HEAD.top*FR.s,y=(CUR&&!GEOM.z_bed?fro
 // пунктир обводок: длина узора 5+3 должна укладываться в периметр целое число раз, иначе в углу, где узор начинается, — обрубок
 function fixRing(e){const w=+e.getAttribute('width'),h=+e.getAttribute('height'),r=+e.getAttribute('rx')||0,P=2*(w+h)-(8-2*Math.PI)*r;
   e.setAttribute('pathLength',Math.max(8,Math.round(P/8)*8))}
-function setArm(k){if(/PRINT|PAUSE/.test(LASTS.state||'')){toast('Во время печати двигать оси нельзя');return}
-  ARM=ARM===k?null:k;syncArm();if(ARM)toast({xy:'Теперь нажми на стол на виде сверху: головка поедет туда',x:'Теперь нажми на нужное место по горизонтали: головка поедет по X',z:'Теперь нажми на нужную высоту: стол поедет по Z'}[ARM]+'. Esc — отмена.')}
+function setArm(k){if(/PRINT|PAUSE/.test(LASTS.state||'')){toast(tr('move.printing'));return}
+  ARM=ARM===k?null:k;syncArm();if(ARM)toast({xy:tr('arm.xy'),x:tr('arm.x'),z:tr('arm.z')}[ARM]+tr('arm.esc'))}
 function svgQ(svg,e){const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(svg.getScreenCTM().inverse())}
 // цель клика: значение зажимается в рабочую зону, а прицел (q) «прилипает» к краю — видно, куда реально поедет
 function topTarget(e){const q=svgQ($('#svgTop'),e),g=GEOM,cl=(v,m)=>Math.max(0,Math.min(m,v)),
@@ -560,9 +564,9 @@ function frontTarget(e){const q=svgQ($('#svgFront'),e),g=GEOM;
   if(ARM==='x'){const val=Math.max(0,Math.min(g.bx,(q.x-FR.l)/FR.bw*g.bx));return{ok,val,q:{x:FR.l+val/g.bx*FR.bw,y:q.y}}}
   const k=g.z_bed?(q.y-FR.tip)/FR.T:(FR.floor-q.y)/FR.T,val=Math.max(MINZ,Math.min(g.bz,k*g.bz)),kv=val/g.bz*FR.T;
   return{ok,val,q:{x:q.x,y:g.z_bed?FR.tip+kv:FR.floor-kv}}}
-async function goTo(p){ARM=null;syncArm();log('> переезд '+Object.keys(p).map(k=>k.toUpperCase()+p[k].toFixed(1)).join(' '));
+async function goTo(p){ARM=null;syncArm();log(tr('log.goto')+Object.keys(p).map(k=>k.toUpperCase()+p[k].toFixed(1)).join(' '));
   const plan=holdPlan(p.x,p.y,p.z,feedXY(50),Math.min(10,LIM.z||10));
-  const r=await guardedMove(plan,()=>api('/api/goto',p));if(r.error)log(r.error+(r.reply?' · '+r.reply.split('\n')[0]:''),'#ef5350');else log(r.reply||'(отправлено)');tick()}
+  const r=await guardedMove(plan,()=>api('/api/goto',p));if(r.error)log(r.error+(r.reply?' · '+r.reply.split('\n')[0]:''),'#ef5350');else log(r.reply||tr('console.sent'));tick()}
 function hovLabel(rid,tid,txt,x,y,minx,maxx,miny,maxy){const t=$(tid),r=$(rid);t.textContent=txt;let w=0;try{w=t.getBBox().width}catch(_){}if(!w)w=txt.length*6;w+=10;const h=15;
   let lx=x+10;if(lx+w>maxx)lx=x-10-w;if(lx<minx)lx=minx;let ly=y-10-h;if(ly<miny)ly=y+10;if(ly+h>maxy)ly=maxy-h;
   r.setAttribute('x',lx);r.setAttribute('y',ly);r.setAttribute('width',w);t.setAttribute('x',lx+5);t.setAttribute('y',ly+11)}
@@ -582,19 +586,19 @@ function inEl(t,id){return !!(t&&t.closest&&t.closest(id))}
   F.addEventListener('pointermove',e=>{if((ARM!=='x'&&ARM!=='z')||!TW)return;const r=frontTarget(e),hv=$('#fHov');F.style.cursor=r.ok?'crosshair':'not-allowed';if(!r.ok){hv.style.display='none';return}
     const L=$('#fHovL'),C=$('#fHovC');hv.style.display='';C.setAttribute('cx',r.q.x);C.setAttribute('cy',r.q.y);
     if(ARM==='x'){const zn=frontZone();L.setAttribute('x1',r.q.x);L.setAttribute('x2',r.q.x);L.setAttribute('y1',zn[1]);L.setAttribute('y2',zn[1]+zn[3]);hovLabel('#fHovR','#fHovT','X '+r.val.toFixed(0),r.q.x,r.q.y,2,298,2,FR.vbH-2)}
-    else{L.setAttribute('x1',FR.l);L.setAttribute('x2',FR.l+FR.bw);L.setAttribute('y1',r.q.y);L.setAttribute('y2',r.q.y);hovLabel('#fHovR','#fHovT','Z '+r.val.toFixed(1)+(r.val<=MINZ?' · мин':''),r.q.x,r.q.y,2,298,2,FR.vbH-2)}});
+    else{L.setAttribute('x1',FR.l);L.setAttribute('x2',FR.l+FR.bw);L.setAttribute('y1',r.q.y);L.setAttribute('y2',r.q.y);hovLabel('#fHovR','#fHovT','Z '+r.val.toFixed(1)+(r.val<=MINZ?tr('twin.min'):''),r.q.x,r.q.y,2,298,2,FR.vbH-2)}});
   T.addEventListener('pointerleave',()=>{if(TW)$('#tHov').style.display='none'});F.addEventListener('pointerleave',()=>{if(TW)$('#fHov').style.display='none'});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ARM){ARM=null;syncArm()}});
   document.addEventListener('pointerdown',e=>{if(ARM&&!inEl(e.target,'#svgTop')&&!inEl(e.target,'#svgFront')){ARM=null;syncArm()}},true)})();
 // поле очищается, когда принтер принял команду: новая цель видна в плитке («/ 200°»)
-async function setT(code,id){const el=$('#'+id),v=el.value;if(v==='')return toast('Введи температуру');if(await cmd(code+' S'+(+v))){el.value='';el.blur()}}
+async function setT(code,id){const el=$('#'+id),v=el.value;if(v==='')return toast(tr('temp.enter'));if(await cmd(code+' S'+(+v))){el.value='';el.blur()}}
 const printing=()=>/PRINT|PAUSE/.test(LASTS.state||'');
-const SPOIL=['Выключить нагрев во время печати?','Пластик перестанет плавиться, печать будет испорчена.','Выключить',1];
+const SPOIL=[tr('heat.off.title'),tr('heat.off.text'),tr('heat.off.ok'),1];
 async function heatOff(code){if(printing()&&!await ask(...SPOIL))return;cmd(code+' S0')}
 async function coolAll(){if(printing()&&!await ask(...SPOIL))return;
-  tab('log');log('> остудить всё: M104 S0, M140 S0');
+  tab('log');log(tr('log.cool'));
   for(const c of['M104 S0','M140 S0']){const r=await api('/api/console',{cmd:c});if(r.error){log(r.error,'#ef5350');toast(r.error);return}}
-  log('нагрев сопла и стола выключен');toast('Нагрев выключен');tick()}
+  log(tr('log.cooled'));toast(tr('temp.cooled'));tick()}
 // ---- настройки
 function openSet(){$('#ov').classList.add('on');loadSettings()}function closeSet(){$('#ov').classList.remove('on')}
 async function openLogDir(){const r=await api('/api/logdir',{});if(r.error)toast(r.error)}
@@ -603,25 +607,27 @@ async function loadSettings(){
   $('#sip').value=s.printer_ip||'';markPrev(s.preview||'off');$('#sow').checked=!!s.overwrite;$('#sbg').checked=!!s.background_poll;$('#smax').value=s.max_name;
   $('#srem').checked=!!s.remote;$('#sauto').checked=!!s.autostart;$('#autorow').style.display=s.can_autostart?'':'none';$('#ver').textContent='v'+s.version;$('#logdir').hidden=!(s.local&&s.can_autostart);
   if(s.geom){GEOM=s.geom;$('#gbx').value=GEOM.bx;$('#gby').value=GEOM.by;$('#gbz').value=GEOM.bz;$('#gzb').checked=!!GEOM.z_bed;buildTwin();updateTwin(LASTS)}
+  const lg=$('#slang');lg.textContent='';Object.keys(s.langs||{}).forEach(c=>{const b=document.createElement('button');b.textContent=s.langs[c];if(c===s.lang)b.className='on';b.onclick=()=>setLang(c);lg.appendChild(b)});
   showLimits(s.limits&&s.limits.vmax);
   const rm=$('#remote');rm.hidden=!s.remote;rm.textContent='';
   if(s.remote){const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
-    const a=el('div',null,'Открой на телефоне (он должен быть в той же Wi-Fi-сети): ');s.urls.forEach((u,i)=>{if(i)a.append(' или ');a.append(el('code',null,u))});rm.append(a);
+    const a=el('div',null,tr('remote.open'));s.urls.forEach((u,i)=>{if(i)a.append(tr('common.or'));a.append(el('code',null,u))});rm.append(a);
     if(s.pin){const p=el('div','row');p.style.margin='0';p.append(el('span','mut','PIN'),el('span','pin',s.pin),el('span','sp'));
-      const b=el('button','sm','Новый PIN');b.onclick=newPin;p.append(b);rm.append(p)}}}
-async function newPin(){if(!await ask('Сменить PIN?','Телефоны, на которых уже входили, попросят ввести новый.','Сменить'))return;
-  const r=await api('/api/settings',{new_pin:true});toast(r.error||'PIN изменён');loadSettings()}
+      const b=el('button','sm',tr('pin.new'));b.onclick=newPin;p.append(b);rm.append(p)}}}
+async function newPin(){if(!await ask(tr('pin.change.title'),tr('pin.change.text'),tr('pin.change.ok')))return;
+  const r=await api('/api/settings',{new_pin:true});toast(r.error||tr('pin.changed'));loadSettings()}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('on')&&!$('#dlg').classList.contains('on'))closeSet()});
-async function saveIp(){const r=await api('/api/settings',{printer_ip:$('#sip').value});toast(r.error||'Сохранено');tick();loadSettings()}
+async function saveIp(){const r=await api('/api/settings',{printer_ip:$('#sip').value});toast(r.error||tr('common.saved'));tick();loadSettings()}
 // картинка для стокового экрана MKS: off / ghost (50 и 200 px) / mks (100 и 200 px)
 function markPrev(p){document.querySelectorAll('#sprev button').forEach(b=>b.classList.toggle('on',b.dataset.p===p))}
 function setPrev(b){markPrev(b.dataset.p);saveOpt()}
-async function saveOpt(){const r=await api('/api/settings',{preview:($('#sprev .on')||{dataset:{p:'off'}}).dataset.p,overwrite:$('#sow').checked,background_poll:$('#sbg').checked,max_name:+$('#smax').value,bed_x:+$('#gbx').value,bed_y:+$('#gby').value,bed_z:+$('#gbz').value,z_bed:$('#gzb').checked});toast(r.error||'Сохранено');loadSettings()}
-async function saveRemote(){const r=await api('/api/settings',{remote:$('#srem').checked});toast(r.error||'Сохранено');loadSettings()}
-async function saveAuto(){const r=await api('/api/settings',{autostart:$('#sauto').checked});toast(r.error||'Сохранено')}
-async function findPrinter(){toast('Ищу принтер в сети…');const r=await api('/api/discover',{});
-  if(r.error){toast('Ошибка поиска: '+r.error);return}const sc=(r.scanned||[]).map(b=>b+'.1–254').join(', ');
-  if(!r.found||!r.found.length){toast('Принтер не найден. Проверено: '+(sc||'ничего')+'. Включён ли принтер и в той же ли он сети? Можно ввести IP вручную.');return}
-  let ip=r.found[0];if(r.found.length>1){ip=await ask('Найдено несколько принтеров','Выбери, к какому подключаться:',null,0,r.found);if(!ip)return}
+async function saveOpt(){const r=await api('/api/settings',{preview:($('#sprev .on')||{dataset:{p:'off'}}).dataset.p,overwrite:$('#sow').checked,background_poll:$('#sbg').checked,max_name:+$('#smax').value,bed_x:+$('#gbx').value,bed_y:+$('#gby').value,bed_z:+$('#gbz').value,z_bed:$('#gzb').checked});toast(r.error||tr('common.saved'));loadSettings()}
+async function saveRemote(){const r=await api('/api/settings',{remote:$('#srem').checked});toast(r.error||tr('common.saved'));loadSettings()}
+async function saveAuto(){const r=await api('/api/settings',{autostart:$('#sauto').checked});toast(r.error||tr('common.saved'))}
+async function setLang(c){const r=await api('/api/settings',{lang:c});if(r.error){toast(r.error);return}location.reload()}
+async function findPrinter(){toast(tr('find.searching'));const r=await api('/api/discover',{});
+  if(r.error){toast(tr('find.error')+r.error);return}const sc=(r.scanned||[]).map(b=>b+'.1–254').join(', ');
+  if(!r.found||!r.found.length){toast(tr('find.none')+(sc||tr('find.nothing'))+tr('find.none_tail'));return}
+  let ip=r.found[0];if(r.found.length>1){ip=await ask(tr('find.many.title'),tr('find.many.text'),null,0,r.found);if(!ip)return}
   $('#sip').value=ip;saveIp()}
 renderRef();buildTwin();applyTheme();loadSettings();tick();setInterval(tick,3000);setTimeout(loadFiles,1500);
