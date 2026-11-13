@@ -170,6 +170,8 @@ const CMDH=[];let hi=0;
 function log(t,c){const l=$('#log'),d=document.createElement('div');d.textContent=t;if(c)d.style.color=c;l.appendChild(d);l.scrollTop=l.scrollHeight}
 function homeAnim(c){const ax=c.trim().toUpperCase().split(/\s+/).slice(1).filter(a=>/^[XYZ]$/.test(a)),all=!ax.length,h=a=>all||ax.includes(a);
   holdMove(h('X')?0:null,h('Y')?0:null,h('Z')?0:null,feedXY(50),Math.min(LIM.z||5,5),3500)}
+// «Пуск» после паузы на остывшем сопле: прошивка сама греет до 170° и сразу давит пруток (для PETG и др. мало).
+async function resumePrint(){const n=LASTS.nozzle;if(n&&n[0]<170&&!await ask(tr('danger.cold_resume.title'),tr('danger.cold_resume.text',{t:Math.round(n[0])}),tr('danger.cold_resume.ok'),1))return;cmd('M24')}
 async function cmd(c){const tok=c.trim().split(/\s+/)[0].toUpperCase(),dg=DANGER[tok];if(dg&&!await ask(dg[0],dg[1],dg[2],dg[3]))return;
   if(tok==='G28'&&!/PRINT|PAUSE/.test(LASTS.state||'')){homeAnim(c);HOMING=Date.now()}
   tab('log');log('> '+c);const r=await api('/api/console',{cmd:c,force:$('#force').checked});

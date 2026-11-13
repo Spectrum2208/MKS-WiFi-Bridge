@@ -36,7 +36,7 @@
  <div class="stats"><div class="big" id="progtxt">—</div><div class="sb"><div class="bar"><i id="prog"></i></div><div class="mut" id="file"></div></div></div>
  <div class="kv2"><span>{{print.layer}} <b id="layer">—</b></span><span>Z <b id="zv">—</b></span><span>{{print.elapsed}} <b id="elapsed">—</b></span><span>{{print.left}} <b id="eta">—</b> <i id="fin"></i></span></div>
  <div class="mut" id="err" style="color:var(--bad)"></div>
- <div class="btnrow"><button class="bt blk" title="{{print.pause.title}}" onclick="cmd('M25')"><span data-i="pause" style="color:#f59e0b"></span>{{print.pause}}</button><button class="bt blk" title="{{print.resume.title}}" onclick="cmd('M24')"><span data-i="play" style="color:#16a34a"></span>{{print.resume}}</button>
+ <div class="btnrow"><button class="bt blk" title="{{print.pause.title}}" onclick="cmd('M25')"><span data-i="pause" style="color:#f59e0b"></span>{{print.pause}}</button><button class="bt blk" title="{{print.resume.title}}" onclick="resumePrint()"><span data-i="play" style="color:#16a34a"></span>{{print.resume}}</button>
   <button class="bt blk" title="{{print.stop.title}}" onclick="cmd('M26')"><span data-i="stop" style="color:#dc2626"></span>{{print.stop}}</button></div></div>
 <div class="card" id="cFl"><h2>{{files.title}}</h2>
  <div class="drop" id="drop">{{upload.drop}}<input id="pick" type="file" accept=".gcode,.gco,.g" multiple hidden></div>
