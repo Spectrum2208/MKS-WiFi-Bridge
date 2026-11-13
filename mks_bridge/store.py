@@ -41,10 +41,13 @@ def layer_info(file, progress, z, sd=None):
     if not idx or not idx["offsets"]:
         return None
     if sd and abs(sd[1] - idx["size"]) <= 64:   # Marlin сообщил позицию в файле: слой известен точно
-        frac = sd[0] / float(sd[1])
+        # прогресс — от начала первого слоя: картинка MKS и стартовый код в начале файла (бывает 10% размера)
+        # читаются за секунды, и по байтам всего файла полоса прыгала бы сразу на 10%
+        off0 = idx["offsets"][0]
+        frac = min(1.0, max(0.0, (sd[0] - off0) / float(max(1, sd[1] - off0))))
         eta = int(idx["est"] * (1 - frac)) if idx["est"] else None
         return {"layer": max(1, bisect.bisect_right(idx["offsets"], sd[0])), "layers": len(idx["offsets"]),
-                "eta": eta, "layer_exact": True}
+                "eta": eta, "layer_exact": True, "progress": int(frac * 100)}
     if progress is None:   # ни позиции в файле, ни процента (нагрев перед печатью): Z остался от прошлого, не гадаем
         return None
     n, zs = len(idx["offsets"]), idx.get("zs") or []
