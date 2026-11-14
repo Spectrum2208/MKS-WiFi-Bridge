@@ -8,6 +8,7 @@
 Если установлен Inno Setup 6, рядом собирается и установщик dist\\MKSBridge-Setup.exe (packaging\\installer.iss).
 """
 import glob
+import hashlib
 import os
 import re
 import subprocess
@@ -45,4 +46,19 @@ def build_setup():
     print("Установщик: dist/MKSBridge-Setup.exe (" + version + ")")
 
 
+
+def write_sums():
+    """Контрольные суммы для обновления из панели (mks_bridge/update.py): файл прикладывается к релизу вместе с exe."""
+    lines = []
+    for name in ("MKSBridge-Setup.exe", "MKSBridge.exe"):
+        path = os.path.join("dist", name)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                lines.append("%s  %s\n" % (hashlib.sha256(f.read()).hexdigest(), name))
+    with open(os.path.join("dist", "SHA256SUMS.txt"), "w", encoding="ascii", newline="\n") as f:
+        f.writelines(lines)
+    print("Контрольные суммы: dist/SHA256SUMS.txt")
+
+
 build_setup()
+write_sums()

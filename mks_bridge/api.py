@@ -10,7 +10,7 @@ import threading
 import time
 from urllib.parse import parse_qs, urlparse
 
-from . import VERSION
+from . import VERSION, update
 from .autostart import autostart_get, autostart_set
 from .config import CFG, CFG_DIR, LOG_PATH, cfg_save, log
 from .discovery import discover, local_ip
@@ -423,6 +423,8 @@ class PanelApi:
             self.printer.max_name = CFG["max_name"] = max_name
         if "overwrite" in b:
             self.printer.overwrite = CFG["overwrite"] = bool(b["overwrite"])
+        if "update_check" in b:
+            CFG["update_check"] = bool(b["update_check"])
         if "background_poll" in b:
             CFG["background_poll"] = bool(b["background_poll"])
         if b.get("preview") in PRESETS or b.get("preview") == "off":
@@ -470,6 +472,30 @@ class PanelApi:
             return
         found, scanned = discover(self.printer.tcp_port, self.printer.ip)
         self._json(200, {"found": found, "scanned": scanned})
+
+    # --- обновление моста ---
+    def _update_status(self):
+        self._json(200, update.status(self._local()))
+
+    def _update_do(self):
+        act = self._jbody().get("action")
+        if act == "check":
+            update.check()
+        elif act == "install":
+            if not self._local():   # установка — это запуск программы на компьютере: с телефона нельзя
+                self._json(403, {"error": tr("err.local_only")})
+                return
+            if self.printer.transferring:   # перезапуск моста оборвал бы заливку файла
+                self._json(409, {"error": tr("err.uploading")})
+                return
+            err = update.install(lambda: APP["stop"](), lambda: self.printer.transferring)
+            if err:
+                self._json(409, {"error": err})
+                return
+        else:
+            self._json(400, {"error": "bad action"})
+            return
+        self._json(200, update.status(self._local()))
 
     def _quit(self):
         if self._local():

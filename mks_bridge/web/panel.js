@@ -601,8 +601,40 @@ async function coolAll(){if(printing()&&!await ask(...SPOIL))return;
   tab('log');log(tr('log.cool'));
   for(const c of['M104 S0','M140 S0']){const r=await api('/api/console',{cmd:c});if(r.error){log(r.error,'#ef5350');toast(r.error);return}}
   log(tr('log.cooled'));toast(tr('temp.cooled'));tick()}
+// ---- обновление моста: плашка сверху и строка в настройках (см. update.py)
+let UPD=null,updBusy='';
+async function updLoad(){if(updBusy)return;const u=await api('/api/update');if(u.error||u.bridge===false)return;UPD=u;updShow()}
+function updShow(){const u=UPD;if(!u)return;
+  const when=u.checked?new Date(u.checked*1000).toLocaleString(LOC,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+  $('#supd').checked=!!u.auto;$('#updV').textContent=tr('settings.update',{v:u.current});
+  $('#updS').textContent=u.available?tr('update.available',{v:u.latest}):u.check_error?tr('update.check_failed'):when?tr('update.latest',{t:when}):tr('update.never');
+  $('#updBtn').hidden=!u.available||!!updBusy;$('#updBtn').textContent=u.can_install?tr('update.install'):tr('update.download');$('#updChk').disabled=!!updBusy;
+  const bar=$('#upd');bar.hidden=!updBusy&&!(u.available&&lsGet('mks_upd_skip')!==u.latest);
+  $('#updT').textContent=updBusy||tr('update.available',{v:u.latest});
+  $('#updH').textContent=updBusy||u.can_install?'':(u.mode==='source'?tr('update.source'):tr('update.local_only'));
+  $('#updA').href=u.url;for(const id of['updN','updA','updX'])$('#'+id).hidden=!!updBusy;$('#updGo').hidden=!!updBusy||!u.can_install}
+function updLater(){lsSet('mks_upd_skip',UPD.latest);updShow()}
+async function updCheck(){$('#updS').textContent=tr('update.checking');const u=await api('/api/update',{action:'check'});if(u.error){toast(u.error);return}UPD=u;lsSet('mks_upd_skip','');updShow()}
+async function saveUpd(){const r=await api('/api/settings',{update_check:$('#supd').checked});toast(r.error||tr('common.saved'));updLoad()}
+function updNotes(){const u=UPD,n=(u.notes||'').replace(/\r/g,'').replace(/^#+\s*/gm,'').replace(/\*\*|`/g,'').trim();
+  ask(tr('update.notes.title',{v:u.latest}),n.length>1800?n.slice(0,1800)+'…':n,u.can_install?tr('update.install'):tr('update.download')).then(ok=>{if(ok)updInstall(true)})}
+async function updInstall(sure){const u=UPD;if(!u)return;
+  if(!u.can_install){window.open(u.url,'_blank','noopener');return}
+  if(sure!==true&&!await ask(tr('update.confirm.title',{v:u.latest}),(printing()?tr('update.confirm.printing'):tr('update.confirm.text')),tr('update.install')))return;
+  const r=await api('/api/update',{action:'install'});if(r.error){toast(r.error);return}
+  const was=u.current,t0=Date.now();let down=false;updBusy=tr('update.downloading',{p:0});updShow();
+  const stop=msg=>{updBusy='';updShow();if(msg)toast(msg)};
+  for(;;){await new Promise(res=>setTimeout(res,1000));const s=await api('/api/update');
+    if(s.bridge===false||s.error){down=true;updBusy=tr('update.restarting')}
+    else if(s.current!==was){location.reload();return}
+    else if(s.state==='error'){UPD=s;stop(tr('update.failed')+s.error);return}
+    else if(down){UPD=s;stop(tr('update.failed_generic'));return}   // мост вернулся прежней версии
+    else updBusy=s.state==='downloading'?tr('update.downloading',{p:s.total?Math.round(s.done*100/s.total):0}):tr('update.installing');
+    if(Date.now()-t0>240000){stop(tr('update.timeout'));return}
+    updShow()}}
+updLoad();setInterval(updLoad,1800e3);
 // ---- настройки
-function openSet(){$('#ov').classList.add('on');loadSettings()}function closeSet(){$('#ov').classList.remove('on')}
+function openSet(){$('#ov').classList.add('on');loadSettings();updLoad()}function closeSet(){$('#ov').classList.remove('on')}
 async function openLogDir(){const r=await api('/api/logdir',{});if(r.error)toast(r.error)}
 async function loadSettings(){
   const s=await api('/api/settings');if(s.error){toast(s.error);return}

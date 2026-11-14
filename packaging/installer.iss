@@ -17,7 +17,7 @@ DefaultDirName={autopf}\MKS WiFi Bridge
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 WizardStyle=modern
-; язык мастера — по языку Windows, без лишнего окна выбора (сама панель пока только на русском)
+; язык мастера — по языку Windows, без лишнего окна выбора
 ShowLanguageDialog=no
 LanguageDetectionMethod=uilanguage
 SetupIconFile=icon.ico
@@ -60,6 +60,36 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\MKSBridge.exe"; Description: "{cm:Launch}"; Flags: nowait postinstall skipifsilent
+; тихая установка — это обновление из панели (mks_bridge\update.py): мост запускаем сами, панель уже открыта
+Filename: "{app}\MKSBridge.exe"; Parameters: "--no-browser --updated"; Flags: nowait; Check: WizardSilent
+
+[Code]
+function OpenProcess(dwDesiredAccess: DWORD; bInheritHandle: BOOL; dwProcessId: DWORD): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(hHandle: THandle; dwMilliseconds: DWORD): DWORD;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(hObject: THandle): BOOL;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+{ Обновление из панели: мост запускает установщик с /WAITPID=номер своего процесса и закрывается сам.
+  Ждём его здесь, до проверки занятых файлов: иначе установщик застаёт мост закрывающимся и ждёт его 30 секунд. }
+function InitializeSetup(): Boolean;
+var
+  Pid: Integer;
+  H: THandle;
+begin
+  Result := True;
+  Pid := StrToIntDef(ExpandConstant('{param:WAITPID|0}'), 0);
+  if Pid > 0 then
+  begin
+    H := OpenProcess($00100000, False, Pid);   { SYNCHRONIZE: право только ждать завершения }
+    if H <> 0 then
+    begin
+      WaitForSingleObject(H, 20000);
+      CloseHandle(H);
+    end;
+  end;
+end;
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM MKSBridge.exe"; Flags: runhidden; RunOnceId: "StopBridge"

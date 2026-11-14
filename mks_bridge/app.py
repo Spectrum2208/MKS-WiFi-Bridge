@@ -9,7 +9,7 @@ import time
 import traceback
 import webbrowser
 
-from . import VERSION
+from . import VERSION, update
 from .api import ACTIVITY, APP
 from .config import CFG, NOTIFY, cfg_load, cfg_save, log
 from .discovery import discover
@@ -139,6 +139,7 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--tcp-port", type=int)
     ap.add_argument("--http-port", type=int)
+    ap.add_argument("--updated", action="store_true", help=argparse.SUPPRESS)   # запуск после обновления (см. update.py)
     a = ap.parse_args()
 
     cfg_load()
@@ -169,7 +170,14 @@ def main():
 
     url = "http://127.0.0.1:%d" % CFG["port"]
     try:
-        serve(printer)
+        for left in range(60 if a.updated else 1, 0, -1):   # после обновления прежний мост ещё закрывается: ждём порт
+            try:
+                serve(printer)
+                break
+            except OSError:
+                if left == 1:
+                    raise
+                time.sleep(0.5)
     except OSError:
         if bridge_running(CFG["port"]):
             print("Мост уже запущен. Открываю панель.")
@@ -181,6 +189,9 @@ def main():
         return
     APP["rebind"] = lambda: threading.Thread(target=rebind, args=(printer,), daemon=True).start()
     threading.Thread(target=sampler, args=(printer,), daemon=True).start()
+    update.cache_load()
+    update.cleanup()
+    threading.Thread(target=update.watch, daemon=True).start()
     print("MKS WiFi Bridge %s: %s" % (VERSION, url))
 
     if first_run:
