@@ -51,6 +51,8 @@
 - Windows: готовый `.exe`, значок в трее, автозапуск.
 - Исходники: Python 3.10+, только стандартная библиотека.
 - Панель во вкладке «Принтер» в Orca, в браузере, с телефона по PIN-коду.
+- Интерфейс на русском и английском, язык переключается в настройках.
+- Проверка новых версий и обновление по кнопке из панели.
 - Журнал работы с ротацией, выгрузка в один клик.
 
 > ⚠️ **Используйте на свой страх и риск.** Мост проверен на одном принтере — моём. Он отправляет на принтер файлы
@@ -72,13 +74,19 @@
 
 3. Запустите установщик. Если появится окно «Windows защитила ваш компьютер» — «Подробнее» → «Выполнить в любом случае».
    Удаляется программа как обычно: «Параметры → Приложения → MKS WiFi Bridge»; настройки при этом сохраняются.
-4. Брандмауэр спросит про доступ к сети — **«Разрешить»**. Это нужно, чтобы панель открывалась с телефона;
-   без разрешения мост работает только на этом компьютере.
-
-   <img src="docs/img/install-4-firewall.png" width="340" alt="Брандмауэр: Разрешить">
-
-5. Откроется панель `http://127.0.0.1:5000`, мост сам поищет принтер в сети. Значок моста появится в трее.
+4. Откроется панель `http://127.0.0.1:5000`, мост сам поищет принтер в сети. Значок моста появится в трее.
    Дальше мост запускается ярлыком «MKS WiFi Bridge» или сам вместе с Windows.
+
+### Обновление
+
+Раз в сутки мост сверяет свою версию с последним релизом на GitHub; сам ничего не устанавливает. Когда выходит новая
+версия, в панели появляется плашка с описанием изменений и кнопкой «Обновить»: мост скачивает файл из этого репозитория,
+сверяет контрольную сумму, устанавливает и перезапускается. Печать при этом не прерывается — принтер печатает с карты памяти.
+
+- Кнопка работает только на компьютере, где запущен мост; с телефона обновление не запускается.
+- Проверка отключается в настройках (раздел «Обновления»), там же — проверка вручную.
+- Кнопка есть в версиях начиная с 2.1.0. С более ранних версий — один раз обновиться вручную: установить новую поверх старой.
+- При запуске из исходников кнопки нет: обновление через `git pull`.
 
 ### Вариант 2: из исходников
 
@@ -119,7 +127,11 @@ python run_bridge.py
 ## Первый запуск
 
 - Мост сам ищет принтер в локальной сети. Если не нашёл — откройте настройки панели (значок справа вверху) и нажмите «Найти принтер» или впишите IP вручную.
-- В настройках задаются размеры стола, длина имени файла на экране принтера, автозапуск вместе с Windows и доступ с телефона.
+- В настройках задаются язык интерфейса, размеры стола, длина имени файла на экране принтера, автозапуск вместе с Windows и доступ с телефона.
+- Доступ с телефона включается в настройках (**4** на картинке ниже). В этот момент Windows спросит про брандмауэр — **«Разрешить»**,
+  иначе панель с телефона не откроется. Пока доступ выключен, мост виден только этому компьютеру.
+
+  <img src="docs/img/install-4-firewall.png" width="340" alt="Брандмауэр: Разрешить">
 - Настройки и журнал лежат в `%APPDATA%\MKSBridge\`.
 
 <img src="docs/img/panel-settings.png" width="420" alt="Настройки панели">
@@ -136,7 +148,8 @@ MKSBridge.exe [--ip АДРЕС] [--port 5000] [--no-tray] [--no-browser]
 
 ## Если что-то не работает
 
-- **Windows спрашивает про брандмауэр** при первом запуске. Нажмите «Разрешить» — тогда панель откроется и с телефона. Если отказать, с этого компьютера всё работает, а с телефона нет.
+- **Windows спрашивает про брандмауэр** при включении доступа с телефона. Нажмите «Разрешить» — тогда панель откроется с телефона. Если отказать, с этого компьютера всё работает, а с телефона нет.
+- **Не появляется плашка обновления или нет кнопки «Обновить».** Проверка идёт раз в сутки; в настройках есть кнопка «Проверить». Если GitHub недоступен, остаётся ручная установка из [Releases](../../releases).
 - **Антивирус ругается на `MKSBridge.exe`.** Программы, собранные PyInstaller, иногда получают ложные срабатывания. Можно запустить мост из исходников (вариант 2) — это тот же код.
 - **Мост не находит принтер.** Принтер и компьютер должны быть в одной сети (не в гостевой). Если сеть устроена сложнее обычной домашней, впишите IP принтера вручную в настройках панели — его показывает экран принтера в разделе Wi-Fi.
 - **«Порт 5000 занят другой программой».** Запустите мост с другим портом (`--port 5001`) и укажите этот же порт в Orca.
@@ -168,7 +181,6 @@ Flying Bear Ghost 4S с прошивкой [Marlin_FB4S](https://github.com/Serg
 
 Без обещаний сроков — просто что хочется сделать дальше:
 
-- английский интерфейс панели;
 - схема для принтеров с подвижным столом (дрыгостолов);
 - выбор хотэнда и экструдера в отрисовке головы;
 - помощник ручной калибровки стола: винты стола на схеме под разные принтеры, объезд углов по клику;
@@ -253,6 +265,8 @@ no check that the file actually landed on the SD card, and no monitoring at all.
 - Windows: ready-made `.exe`, tray icon, autostart.
 - From source: Python 3.10+, standard library only.
 - Dashboard in Orca's "Device" tab, in a browser, on a phone with a PIN code.
+- Interface in Russian and English, switched in the settings.
+- New version check and one-click update from the dashboard.
 - Rotating log, one-click download.
 
 > ⚠️ **Use at your own risk.** The bridge has been tested on one printer — mine. It sends files and commands to the
@@ -274,13 +288,20 @@ no check that the file actually landed on the SD card, and no monitoring at all.
 
 3. Run the installer. If "Windows protected your PC" appears — "More info" → "Run anyway".
    To uninstall: "Settings → Apps → MKS WiFi Bridge"; your settings are kept.
-4. The firewall asks about network access — **"Allow"**. It's needed to open the dashboard on your phone;
-   without it the bridge works on this PC only.
-
-   <img src="docs/img/install-4-firewall.png" width="340" alt="Firewall: Allow">
-
-5. The dashboard opens at `http://127.0.0.1:5000` and the bridge searches for the printer on your network. The bridge icon appears in the system tray.
+4. The dashboard opens at `http://127.0.0.1:5000` and the bridge searches for the printer on your network. The bridge icon appears in the system tray.
    After that, start the bridge from the "MKS WiFi Bridge" shortcut, or let it start with Windows.
+
+### Updating
+
+Once a day the bridge compares its version with the latest release on GitHub; it never installs anything on its own.
+When a new version is out, the dashboard shows a banner with the release notes and an "Update" button: the bridge
+downloads the file from this repository, verifies its checksum, installs it and restarts. A running print is not
+interrupted — the printer prints from its SD card.
+
+- The button works only on the PC running the bridge; an update can't be started from a phone.
+- The check can be turned off in the settings ("Updates" section); a manual check is there too.
+- The button exists in versions starting from 2.1.0. From earlier versions, update manually once: install the new version over the old one.
+- When running from source there is no button: update with `git pull`.
 
 ### Option 2: from source
 
@@ -318,17 +339,21 @@ The screenshots show Orca in Russian; the numbers match the steps.
 
 **Model picture on the printer screen** (for stock MKS screens; Color UI and other screens drawn by Marlin itself show no pictures).
 In Orca: printer settings → "Basic information" → "G-code thumbnails", enter e.g. `300x300/PNG`.
-In the dashboard: settings → "Картинка модели на экране" (model picture) → your printer (**3** in the picture below). The bridge resizes the thumbnail itself.
+In the dashboard: settings → "Model picture on the screen" → your printer (**3** in the picture below). The bridge resizes the thumbnail itself.
 
 ## First run
 
-- The bridge searches for the printer on your local network. If it doesn't find it, open the dashboard settings (top-right icon) and click "Find printer" (Найти принтер), or enter the IP manually.
-- The settings hold the bed size, the file name length for the printer screen, autostart with Windows and phone access.
+- The bridge searches for the printer on your local network. If it doesn't find it, open the dashboard settings (top-right icon) and click "Find", or enter the IP manually.
+- The settings hold the interface language, the bed size, the file name length for the printer screen, autostart with Windows and phone access.
+- Phone access is turned on in the settings (**4** in the picture below). At that moment Windows asks about the firewall — **"Allow"**,
+  otherwise the dashboard won't open on the phone. While phone access is off, the bridge is visible to this PC only.
+
+  <img src="docs/img/install-4-firewall.png" width="340" alt="Firewall: Allow">
 - Settings and the log live in `%APPDATA%\MKSBridge\`.
 
 <img src="docs/img/panel-settings.png" width="420" alt="Dashboard settings">
 
-**1** — printer address and the "Найти" (find) button, **2** — your printer's build volume, **3** — model picture for the printer screen, **4** — phone access.
+**1** — printer address and the "Find" button, **2** — your printer's build volume, **3** — model picture for the printer screen, **4** — phone access.
 
 ### Command-line options
 
@@ -340,16 +365,17 @@ MKSBridge.exe [--ip ADDRESS] [--port 5000] [--no-tray] [--no-browser]
 
 ## Troubleshooting
 
-- **Windows asks about the firewall** on first run. Click "Allow" so the dashboard also opens on your phone. If you deny it, everything still works on this PC, just not from the phone.
+- **Windows asks about the firewall** when phone access is turned on. Click "Allow" so the dashboard opens on your phone. If you deny it, everything still works on this PC, just not from the phone.
+- **No update banner or no "Update" button.** The check runs once a day; the settings have a "Check now" button. If GitHub is unreachable, manual installation from [Releases](../../releases) remains.
 - **Your antivirus flags `MKSBridge.exe`.** Programs built with PyInstaller sometimes get false positives. You can run the bridge from source instead (option 2) — it's the same code.
 - **The bridge can't find the printer.** The printer and the PC must be on the same network (not a guest network). If your network is more complex than a typical home one, enter the printer's IP manually in the dashboard settings — the printer screen shows it in its Wi-Fi menu.
 - **"Port 5000 is used by another program".** Start the bridge on another port (`--port 5001`) and use the same port in Orca.
-- **The dashboard says "Мост не отвечает" (bridge not responding).** The program is closed — start it again and the dashboard reconnects by itself.
+- **The dashboard says "The bridge is not responding".** The program is closed — start it again and the dashboard reconnects by itself.
 
 ## Reporting a problem
 
-1. Open the dashboard settings → the "Если что-то не работает" (troubleshooting) section → **"Скачать"** (download) the log
-   (or "Открыть папку" to open its folder — the log is `%APPDATA%\MKSBridge\mks_bridge.log`).
+1. Open the dashboard settings → the "If something doesn't work" section → **"Download"** the log
+   (or "Open folder" — the log is `%APPDATA%\MKSBridge\mks_bridge.log`).
 2. Open an [issue](../../issues): what you did, what you expected, what happened, and your printer model.
 3. Attach the log file. It contains no passwords or PIN — only what the bridge did, the printer's replies and file names.
 
@@ -361,7 +387,7 @@ While a print started over Wi-Fi is running, the MKS-WIFI module answers status 
 
 ## Known limitations
 
-- While the module receives a file, the printer doesn't answer commands: the dashboard shows "Загрузка файла" (uploading) and waits.
+- While the module receives a file, the printer doesn't answer commands: the dashboard shows "UPLOADING FILE" and waits.
 - The author can't test the picture on stock MKS screens (the author's printer runs Color UI): the format is taken from the MKS WiFi plugin for Cura. If you have a stock screen, please report in [Issues](../../issues) whether the picture shows up.
 - The firmware can't handle Cyrillic file names, so the bridge transliterates names and shortens long ones; the original name is shown in the dashboard.
 - The MKS-WIFI module keeps a single connection. Don't run another program that talks to the printer over Wi-Fi at the same time.
@@ -372,7 +398,6 @@ While a print started over Wi-Fi is running, the MKS-WIFI module answers status 
 
 No promised dates — just what I'd like to do next:
 
-- an English dashboard interface (it's in Russian for now);
 - a diagram for bed slinger printers (moving Y bed);
 - a choice of hotend and extruder for the print head drawing;
 - a manual bed leveling helper: bed screws on the diagram for different printers, click to visit each corner;
