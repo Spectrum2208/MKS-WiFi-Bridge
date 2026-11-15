@@ -132,7 +132,7 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
         tok = CFG.get("token") or ""
         return bool(m and tok and CFG["remote"] and CFG["pin"] and hmac.compare_digest(m.group(1).encode(), tok.encode()))
 
-    def _gate(self, page=False):
+    def _gate(self, login=False):
         if self._local():
             host = (self.headers.get("Host") or "").rsplit(":", 1)[0].lower()
             if host not in LOCAL_HOSTS:
@@ -144,7 +144,7 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
             return False
         if self._cookie_ok():
             return True
-        if page:
+        if login:   # имя параметра не page: иначе оно закрывает функцию page() и форма входа падает
             self._send(200, page("login.html"), "text/html")
         else:
             self._json(401, {"error": "auth"})
@@ -178,7 +178,7 @@ class Handler(OctoPrintApi, PanelApi, BaseHTTPRequestHandler):
     def do_GET(self):
         p = self.path.split("?")[0]
         if p == "/":
-            if self._gate(page=True):
+            if self._gate(login=True):
                 self._send(200, page("panel.html"), "text/html")
             return
         if not self._gate():
