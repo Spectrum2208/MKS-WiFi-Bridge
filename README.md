@@ -5,7 +5,28 @@
 Мост между **OrcaSlicer** и 3D-принтерами с модулем **MKS-WIFI** (Flying Bear Ghost 4S и другие принтеры на платах MKS).
 Отправляйте печать прямо из слайсера по Wi-Fi и следите за ней в веб-панели — с компьютера или телефона.
 
-![Веб-панель во время печати](docs/panel.png)
+![Веб-панель во время печати](docs/gif/print.gif)
+
+<sub>Печать 3DBenchy (1 ч 29 мин) за 22 секунды: модель по G-code, слой, прогресс, оставшееся время, температуры.</sub>
+
+![Нагрев и подача прутка](docs/gif/heat.gif)
+
+<sub>Нагрев сопла и стола, график температур, подача и втягивание прутка.</sub>
+
+<table>
+<tr>
+<td width="60%" valign="top">
+<img src="docs/gif/move.gif" alt="Перемещение кликом по схеме"><br>
+<sub>Перемещение кликом по схеме: голова — по X и Y, стол — по Z.</sub>
+</td>
+<td valign="top">
+<img src="docs/gif/phone.gif" alt="Панель на телефоне"><br>
+<sub>Та же панель на телефоне.</sub>
+</td>
+</tr>
+</table>
+
+<sub>Записи сделаны на эмуляторе принтера; печать ускорена.</sub>
 
 ## Как я докатился до жизни такой
 
@@ -28,6 +49,9 @@
 - Эскиз модели для стоковых экранов MKS: PNG из G-code переводится в формат MKS (50 или 100 px и 200 px).
 
 ### Веб-панель
+
+![Веб-панель во время печати](docs/panel.png)
+
 - Схема принтера сверху и спереди в масштабе стола; движение головы с ускорениями и скоростями из прошивки.
 - Модель по G-code: текущий слой — все линии экструзии, остальные — контуры, спереди — силуэт напечатанного.
 - Экструдер в разрезе: E3D V6 и BMG по чертежам производителя, передаточное отношение 50:17.
@@ -220,6 +244,29 @@ by Spectrum2208
 
 A bridge between **OrcaSlicer** and 3D printers with the **MKS-WIFI** module (Flying Bear Ghost 4S and other printers with MKS boards).
 Send prints straight from the slicer over Wi-Fi and watch them in a web dashboard — from your PC or phone.
+
+![Web dashboard during a print](docs/gif/print.gif)
+
+<sub>A 3DBenchy print (1 h 29 min) in 22 seconds: model from G-code, layer, progress, time left, temperatures.</sub>
+
+![Heating and filament feed](docs/gif/heat.gif)
+
+<sub>Nozzle and bed heating, temperature graph, filament push and retract.</sub>
+
+<table>
+<tr>
+<td width="60%" valign="top">
+<img src="docs/gif/move.gif" alt="Click-to-move on the diagram"><br>
+<sub>Click-to-move on the diagram: the head along X and Y, the bed along Z.</sub>
+</td>
+<td valign="top">
+<img src="docs/gif/phone.gif" alt="Dashboard on a phone"><br>
+<sub>The same dashboard on a phone.</sub>
+</td>
+</tr>
+</table>
+
+<sub>Recorded with a printer emulator; the print is sped up. The interface is shown in Russian; English is available in the settings.</sub>
 
 ## How I ended up here
 
