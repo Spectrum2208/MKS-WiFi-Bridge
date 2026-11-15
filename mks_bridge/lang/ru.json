@@ -189,6 +189,8 @@
  "pin.change.title": "Сменить PIN?",
  "pin.changed": "PIN изменён",
  "pin.new": "Новый PIN",
+ "pos.need_home": "неизвестно — нужна парковка",
+ "pos.printing": "во время печати неизвестно",
  "print.elapsed": "Прошло",
  "print.layer": "Слой",
  "print.left": "Осталось",

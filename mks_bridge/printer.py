@@ -88,6 +88,16 @@ class Printer:
         self.fails = 0           # подряд неудачных опросов
         self.fail_until = 0.0    # до этого момента принтер не дёргаем (пауза после сбоя)
         self.busy_until = 0.0    # принтер занят движением: не засыпаем его запросами
+        # Стоковая прошивка Ghost 5 на M114 отвечает одним «ok»: координат нет вообще. Узнаём это сами и говорим панели,
+        # чтобы она не ждала их вечно. Marlin не отвечает на M114 и пока греется (M109/M190 держат очередь) — поэтому
+        # считаем только время, когда принтер точно должен ответить: простой или печать, у которой двигается прогресс.
+        self.pos_seen = False    # принтер хоть раз прислал координаты
+        self.no_pos = False      # принтер координат не сообщает (стоковая прошивка)
+        self._nopos = None       # (с какого момента нет координат, прогресс в тот момент)
+        # Положение по собственным командам — только для таких прошивок. После парковки оно известно точно, дальше мост
+        # прибавляет свои перемещения. Теряется при печати, выключении моторов и любой команде движения из консоли.
+        # Движений с экрана принтера мост не видит: это цена отсутствия M114.
+        self.est = None          # {"x":, "y":, "z":} — None по оси, которая не парковалась
         self.last_err = ""
 
     # --- TCP ---
@@ -211,7 +221,7 @@ class Printer:
         started, err = threading.Event(), []
 
         def run():
-            t0, buf, done = time.time(), b"", False
+            t0, buf, done, broke = time.time(), b"", False, False
             try:
                 with self._tcp_lock:
                     try:
@@ -236,12 +246,20 @@ class Printer:
                             if b"Count" in buf:
                                 done = True
                                 break
+                            # прошивка без координат: M114 отвечает одним «ok», а «ok» на G28 Marlin шлёт после парковки
+                            if self.no_pos and buf.count(b"ok") >= 2:
+                                done = True
+                                break
                     except OSError as e:
+                        broke = True
                         log("парковка: связь оборвалась: %r" % (e,))
                     finally:
                         self._home_sock = None
                         s.close()
                 log("парковка %s: %s за %.1f с" % (command, "готово" if done else "конца не дождались", time.time() - t0))
+                if not broke:   # прошивке без M114 конец парковки не узнать точнее: после неё оси в нуле
+                    axes = [a for a in "XYZ" if a in command.upper().split()[1:]] or list("XYZ")
+                    self.est_set(**{a.lower(): 0.0 for a in axes})
             finally:
                 self.homing = False
                 started.set()
@@ -338,7 +356,8 @@ class Printer:
             st["elapsed"] = int(m[0]) * 3600 + int(m[1]) * 60 + int(m[2])
         m = last(r"(?i)M994\s+/?([^\r\n;]+\.(?:gcode|gco|gc|g))")
         if m:
-            st["file"] = m.strip()
+            # стоковая прошивка MKS пишет имя с диском и путём («1:/FBG5_key.gcode»), а мост помнит файлы по имени
+            st["file"] = m.strip().replace("\\", "/").rsplit("/", 1)[-1].strip()
         # после координат Marlin пишет «Count X:.. Y:.. Z:..» — это счётчики шагов моторов, их пропускаем
         m = last(r"(?<!Count )X:\s*(-?[\d.]+)\s+Y:\s*(-?[\d.]+)\s+Z:\s*(-?[\d.]+)(?:\s+E:\s*(-?[\d.]+))?")
         if m:
@@ -385,6 +404,8 @@ class Printer:
             return old
         st["good_t"] = now
         for k in ("pos", "nozzle", "bed"):
+            if k == "pos" and self.no_pos:
+                continue   # положение у такой прошивки — только расчётное, его подставляет status_cached
             if st[k] is None and prev.get(k) is not None and now - prev.get("good_t", 0) < 90:
                 st[k] = prev[k]
                 st["stale"] = True
@@ -464,6 +485,14 @@ class Printer:
                 self.history.append((int(time.time()), n[0] if n else None, b[0] if b else None,
                                      n[1] if n else None, b[1] if b else None))
             st = self._merge(raw, self._cache[1])
+            self._check_pos(raw, st)
+            st["no_pos"] = self.no_pos
+            if self.no_pos:
+                if is_printing(st):
+                    self.est = None   # печать (в том числе запущенная с экрана): где голова потом — неизвестно
+                st.pop("pos_stale", None)
+                st["pos"] = self._est_pos()
+                st["pos_est"] = st["pos"] is not None
             if self._gen != gen:   # пока мы спрашивали, ушла команда движения/нагрева: ответ уже не отражает принтер
                 st = dict(st, stale=True, pos_stale=True)
                 self._cache = (0.0, st)
@@ -472,6 +501,57 @@ class Printer:
             return st
         finally:
             self._status_lock.release()
+
+    def est_set(self, **axes):
+        lim = {"x": CFG["bed_x"], "y": CFG["bed_y"], "z": CFG["bed_z"]}
+        e = self.est or {"x": None, "y": None, "z": None}
+        for k, v in axes.items():
+            e[k] = round(max(0.0, min(lim[k], float(v))), 3)
+        self.est = e
+        self._est_to_cache()
+
+    def est_add(self, axis, dist):
+        if self.est and self.est.get(axis) is not None:
+            self.est_set(**{axis: self.est[axis] + dist})
+
+    def est_lost(self):
+        self.est = None
+        self._est_to_cache()
+
+    def _est_pos(self):
+        e = self.est
+        return dict(e, e=None) if e and None not in e.values() else None
+
+    def _est_to_cache(self):
+        """Пока принтер занят движением, панели отдаётся прошлое состояние из кэша: кладём туда новое положение сразу."""
+        c = self._cache[1]
+        if c is not None and self.no_pos:
+            pos = self._est_pos()
+            self._cache = (0.0, dict(c, pos=pos, pos_est=pos is not None))
+        else:
+            self.invalidate()
+
+    def _check_pos(self, raw, st):
+        """Сообщает ли принтер координаты. Ответ без них в простое 30 с или во время печати 90 с (при этом прогресс
+        двигается, то есть принтер не стоит на нагреве) — значит, прошивка их не даёт. Первые же координаты это снимают."""
+        if raw.get("pos"):
+            if self.no_pos:
+                log("принтер прислал координаты: панель снова показывает положение головы")
+            self.pos_seen, self.no_pos, self._nopos = True, False, None
+            return
+        if self.pos_seen or self.no_pos or not raw.get("nozzle") or self.homing:
+            return
+        now, prog = time.time(), st.get("progress")
+        if self._nopos is None:
+            self._nopos = (now, prog)
+            return
+        t0, p0 = self._nopos
+        printing = is_printing(st)
+        if printing and (prog is None or prog == p0):
+            return   # прогресс стоит (нагрев перед печатью): Marlin в это время и не должен отвечать
+        if now - t0 >= (90 if printing else 30):
+            self.no_pos = True
+            log("принтер не сообщает координаты (M114 без X:/Y:), панель показывает схему без положения головы")
 
     def printing_now(self):
         """Печатает ли принтер прямо сейчас — для блокировок удаления, запуска и заливки.

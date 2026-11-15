@@ -259,6 +259,9 @@ class PanelApi:
                 self._json(409, {"error": tr("err.blocked", cmd=token)})
                 return
             log("консоль: " + cmd)
+            # команда движения из консоли (или выключение моторов, запуск печати) — расчётное положение больше не верно
+            if (token.startswith("G") and token not in ("G4", "G28")) or token in ("M84", "M18", "M23", "M24", "M32"):
+                self.printer.est_lost()
             if token == "G28":
                 self.printer.home(cmd)
                 self._json(200, {"reply": "", "homing": True})
@@ -319,6 +322,7 @@ class PanelApi:
                 log("принтер отказался ехать: %s" % reply.strip().replace("\n", " | "))
                 self._json(409, {"error": tr("err.home_first"), "reply": reply.strip()})
                 return
+            self.printer.est_set(**vals)
             self._json(200, {"reply": reply.strip()})
         except Exception as e:
             self._json(502, {"error": str(e)})
@@ -382,6 +386,7 @@ class PanelApi:
                 log("принтер отказался ехать: %s" % reply.strip().replace("\n", " | "))
                 self._json(409, {"error": tr("err.home_first"), "reply": reply.strip()})
                 return
+            self.printer.est_add(axis.lower(), dist)
             self._json(200, {"reply": reply.strip()})
         except Exception as e:
             self._json(502, {"error": str(e)})

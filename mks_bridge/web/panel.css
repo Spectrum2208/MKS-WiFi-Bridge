@@ -142,3 +142,4 @@ button.s.ib{display:inline-flex;align-items:center;gap:5px;text-transform:none;l
 .leg{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}.leg span{display:inline-flex;align-items:center;gap:6px}.leg span:last-child{margin-left:auto}
 .srow .seg{flex:none}
 .upd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;padding:8px 12px;border:1px solid var(--acc);border-radius:12px;background:color-mix(in srgb,var(--acc) 10%,var(--card));font-size:14px}.upd[hidden],.upd [hidden]{display:none}.upd .sp{flex:1}.upd a{text-decoration:underline}
+.nopos #tHead,.nopos #tGant,.nopos #fHead{display:none}

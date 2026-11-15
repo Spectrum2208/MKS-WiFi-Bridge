@@ -189,6 +189,8 @@
  "pin.change.title": "Change the PIN?",
  "pin.changed": "PIN changed",
  "pin.new": "New PIN",
+ "pos.need_home": "unknown — home first",
+ "pos.printing": "unknown while printing",
  "print.elapsed": "Elapsed",
  "print.layer": "Layer",
  "print.left": "Remaining",

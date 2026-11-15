@@ -458,8 +458,8 @@ function setVeil(s,fresh){
   else if(s.bridge===false){msg=tr('veil.bridge.title');sub=tr('veil.bridge.text')}
   else if(s.online===false||(s.error&&!fresh)){msg=tr('veil.offline.title');sub=(s.error?String(s.error).replace(/\.?\s*$/,'. '):'')+tr('veil.last_pos')}
   else if(!fresh&&homing()){msg=tr('veil.homing.title');sub=tr('veil.homing.text')}
-  else if(!fresh&&!CUR&&/PRINT|PAUSE/.test(s.state||'')){msg=tr('veil.wait.title');sub=tr('veil.wait.text')}
-  else if(!fresh&&Date.now()-LASTGOOD>25000&&!/PRINT|PAUSE/.test(s.state||'')){msg=tr('veil.slow.title');sub=tr('veil.slow.text')}
+  else if(!fresh&&!s.no_pos&&!CUR&&/PRINT|PAUSE/.test(s.state||'')){msg=tr('veil.wait.title');sub=tr('veil.wait.text')}
+  else if(!fresh&&!s.no_pos&&Date.now()-LASTGOOD>25000&&!/PRINT|PAUSE/.test(s.state||'')){msg=tr('veil.slow.title');sub=tr('veil.slow.text')}
   const wait=s.bridge===false||msg===tr('common.loading')||msg===tr('veil.homing.title')||msg===tr('veil.wait.title');
   document.querySelectorAll('.veil').forEach(v=>{v.hidden=!msg;if(msg){v.children[0].textContent=msg;v.children[1].textContent=sub;v.children[2].style.display=wait?'none':''}})}
 // парковку отслеживает мост (s.homing); HOMING закрывает несколько секунд до первого ответа моста после нажатия
@@ -493,15 +493,18 @@ function updateTwin(s){
   if(fresh&&HOMING&&!s.homing&&Date.now()-HOMING>4000){HOMING=0;HOLD=0}   // парковка кончилась: сразу на настоящие координаты
   if(fresh){LASTGOOD=Date.now();EVER=true;if(Date.now()>=HOLD)setPosTarget(cl(p.x,g.bx),cl(p.y,g.by),cl(p.z,g.bz))}
   setVeil(s,fresh);
-  const x=TGTP?TGTP.x:0,pp=p||(TGTP?{x:TGTP.x,y:TGTP.y,z:TGTP.z}:null),bc=tcol(bt&&bt[0],110),nc=tcol(nt&&nt[0],260);
+  // прошивка координат не сообщает (сток Ghost 5): после парковки мост сам считает положение по своим командам
+  // (s.pos_est, подписи с «≈»); пока оно не известно (до парковки, во время и после печати) — головы на схеме нет
+  const nopos=!!s.no_pos&&!p,est=s.pos_est?'≈ ':'';document.body.classList.toggle('nopos',nopos);
+  const x=TGTP?TGTP.x:0,pp=nopos?null:p||(TGTP?{x:TGTP.x,y:TGTP.y,z:TGTP.z}:null),bc=tcol(bt&&bt[0],110),nc=tcol(nt&&nt[0],260);
   $('#tBed').style.fill=bc;$('#tNoz').style.fill=nc;setPill('#tBedT',bt,bc);
-  $('#tCoord').textContent=pp?'X '+pp.x.toFixed(1)+'  Y '+pp.y.toFixed(1):tr('common.no_data');
+  $('#tCoord').textContent=pp?est+'X '+pp.x.toFixed(1)+'  Y '+pp.y.toFixed(1):!nopos?tr('common.no_data'):/PRINT|PAUSE/.test(s.state||'')?tr('pos.printing'):tr('pos.need_home');
   const fx=FR.l+(x/g.bx)*FR.bw;
   $('#fBed').style.fill=bc;$('#fBlock').style.fill=nc;$('#fNoz').style.fill=nc;
   // у правого края подпись сопла — слева от блока, чтобы не уйти за раму
   const right=fx>FR.l+FR.bw*.7,ft=$('#fNozT');ft.dataset.a=right?'end':'start';ft.setAttribute('transform','translate('+(right?-(8*FR.s+3):17*FR.s+3)+','+(FR.tip-8*FR.s)+')');
   setPill('#fBedT',bt,bc);setPill('#fNozT',nt,nc);
-  $('#fZ').textContent=pp?'Z '+pp.z.toFixed(2)+tr('unit.mm'):'Z —';
+  $('#fZ').textContent=pp?est+'Z '+pp.z.toFixed(2)+tr('unit.mm'):'Z —';
   $('#eBlock').style.fill=nc;$('#eNoz').style.fill=nc;setPill('#eNozT',nt,nc);
   $('#eMelt').style.opacity=nt?Math.max(0,Math.min(1,(nt[0]-150)/80)):0;
   const f=s.fan;$('#fanv').textContent=f==null?'—':f+'%';
